@@ -1,0 +1,27 @@
+[
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "contract IERC20Token",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct WethTransformer.TransformData",
+        "name": "data",
+        "type": "tuple"
+      }
+    ],
+    "name": "abiDecodeStruct",
+    "outputs": [],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]
