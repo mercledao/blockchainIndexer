@@ -5,6 +5,7 @@ const { lastTrackedBlocks, addBlocksQueue, clearBlocksQueue, maintainProcessingQ
 
 const blockProducerJobs = { maintain: {} };
 const lockProducer = {};
+const { latestBlock } = require("./blockConsumer");
 
 const init = async () => {
   await produceBlock();
@@ -14,14 +15,14 @@ const init = async () => {
  * produce new blocks
  */
 const produceBlock = async () => {
-  const dbTrackedBlocks = await _getLastTrackedBlocksDb();
+  // const dbTrackedBlocks = await _getLastTrackedBlocksDb();
   const supportedChains = Object.keys(rpc);
 
   // track missed blocks
   for (let i = 0; i < supportedChains.length; i++) {
     const chainId = supportedChains[i];
     await clearBlocksQueue(chainId);
-    lastTrackedBlocks[chainId] = dbTrackedBlocks[chainId];
+    lastTrackedBlocks[chainId] = latestBlock[chainId];
   }
 
   // track new blocks
@@ -63,28 +64,28 @@ const _produceBlockForChain = async (chainId) => {
   }
 };
 
-const _getLastTrackedBlocksDb = async () => {
-  const blocks = {};
-  const _blocks = await db.blocksTracked
-    .aggregate([
-      {
-        $group: {
-          _id: "$chainId",
-          blockNumber: { $max: "$blockNumber" },
-        },
-      },
-      {
-        $project: {
-          chainId: "$_id",
-          blockNumber: 1,
-          _id: 0,
-        },
-      },
-    ])
-    .toArray();
-  _blocks.forEach((block) => (blocks[block.chainId] = block.blockNumber));
-  return blocks;
-};
+// const _getLastTrackedBlocksDb = async () => {
+//   const blocks = {};
+//   const _blocks = await db.blocksTracked
+//     .aggregate([
+//       {
+//         $group: {
+//           _id: "$chainId",
+//           blockNumber: { $max: "$blockNumber" },
+//         },
+//       },
+//       {
+//         $project: {
+//           chainId: "$_id",
+//           blockNumber: 1,
+//           _id: 0,
+//         },
+//       },
+//     ])
+//     .toArray();
+//   _blocks.forEach((block) => (blocks[block.chainId] = block.blockNumber));
+//   return blocks;
+// };
 
 /**
  * used to track historic blocks for a chain

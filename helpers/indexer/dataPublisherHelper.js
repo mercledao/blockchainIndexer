@@ -65,7 +65,7 @@ const pushData = ({
 
   tokenbackHelper.trackTokenBack({ txn: payload, taskType, amountUsd, realFrom, integrator, tag });
 
-  webhookHelper.callWebhook({ task, payload, contractDetails });
+  // webhookHelper.callWebhook({ task, payload, contractDetails });
 
   if (isBalanceHistory) balanceHistoryHelper.trackBalanceHistory({ data });
 };
@@ -76,7 +76,7 @@ const _saveData = async () => {
     if (txns.length) {
       zooltestnetHelper.indexDataBatch(txns)
 
-      await db.indexer.insertMany(txns, { ordered: false });
+      // await db.indexer.insertMany(txns, { ordered: false });
     }
   } catch (e) {
     console.error(e);

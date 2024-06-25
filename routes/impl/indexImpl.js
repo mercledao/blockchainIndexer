@@ -33,7 +33,7 @@ const getIndexerConfig = async (req, res, next) => {
 const addIndexerConfig = async (req, res, next) => {
   if (!req.body?.length) return res.status(400).send("array required");
   try {
-    await db.indexerConfig.insertMany(req.body);
+    // await db.indexerConfig.insertMany(req.body);
     await blockConsumer.populateTaskConfig();
     return res.send("done");
   } catch (e) {
@@ -126,7 +126,7 @@ const _produceFailedWebhook = async () => {
   let promises = [];
   for (let i = 0; i < toReproduce.length; i++) {
     try {
-      promises.push(webhookHelper.callWebhook(toReproduce[i]).then(() => completed.push(toReproduce[i]._id)));
+      // promises.push(webhookHelper.callWebhook(toReproduce[i]).then(() => completed.push(toReproduce[i]._id)));
 
       if (promises.length > 20) {
         await Promise.allSettled(promises);
