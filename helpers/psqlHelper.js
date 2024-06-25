@@ -60,9 +60,6 @@ const _initBalanceHistory = async () => {
 const _initChainwiseTables = async (tableName, chainId) => {
   try {
     const tableDetails = psql.tables.txn;
-
-    await client.query(`DROP TABLE IF EXISTS ${tableName};`);
-
     await client.query(
       `CREATE TABLE IF NOT EXISTS ${tableName} (
         ${tableDetails.columns.blockNumber.field} BIGINT NOT NULL,
@@ -82,7 +79,6 @@ const _initChainwiseTables = async (tableName, chainId) => {
         ${tableDetails.columns.receiptCumulativeGasUsed.field} BIGINT,
         ${tableDetails.columns.receiptEffectiveGasPrice.field} BIGINT,
         ${tableDetails.columns.receiptGasUsed.field} BIGINT,
-        ${tableDetails.columns.receiptLogs.field} JSONB,
         ${tableDetails.columns.receiptLogsBloom.field} TEXT,
         ${tableDetails.columns.methodId.field} CHARACTER(10)
       )`
@@ -98,38 +94,21 @@ const _initChainwiseTables = async (tableName, chainId) => {
     // Creating sparse indexes.
     client
       .query(
-        `CREATE INDEX IF NOT EXISTS idxTxnsFromAddr_${chainId} ON ${tableName} ("${tableDetails.columns.fromAddr.field}") WHERE ${tableDetails.columns.fromAddr.field} IS NOT NULL`
+        `CREATE INDEX IF NOT EXISTS idxTxnsFromAddr_${chainId} ON ${tableName} ("${tableDetails.columns.fromAddr.field}") WHERE ${tableDetails.columns.fromAddr.field} IS NOT NULL;`
       )
       .catch(console.error);
 
     client
       .query(
-        `CREATE INDEX IF NOT EXISTS idxTxnsToAddr_${chainId} ON ${tableName} ("${tableDetails.columns.toAddr.field}") WHERE ${tableDetails.columns.toAddr.field} IS NOT NULL`
+        `CREATE INDEX IF NOT EXISTS idxTxnsToAddr_${chainId} ON ${tableName} ("${tableDetails.columns.toAddr.field}") WHERE ${tableDetails.columns.toAddr.field} IS NOT NULL;`
       )
       .catch(console.error);
 
     client
       .query(
-        `CREATE INDEX IF NOT EXISTS idxTxnsMethodId_${chainId} ON ${tableName} ("${tableDetails.columns.methodId.field}") WHERE ${tableDetails.columns.methodId.field} IS NOT NULL`
+        `CREATE INDEX IF NOT EXISTS idxTxnsMethodId_${chainId} ON ${tableName} ("${tableDetails.columns.methodId.field}") WHERE ${tableDetails.columns.methodId.field} IS NOT NULL;`
       )
       .catch(console.error);
-
-    // JSONB indexes
-    client
-      .query(
-        `CREATE INDEX IF NOT EXISTS idxReceiptLogsFirstTopic_${chainId} ON ${tableName} USING GIN (
-          (jsonb_path_query_array(${tableDetails.columns.receiptLogs.field}, '$[*].topics[0]')) jsonb_path_ops
-        );`
-      )
-      .catch(console.error);
-
-    client
-    .query(
-      `CREATE INDEX IF NOT EXISTS idxReceiptLogsAddress_${chainId} ON ${tableName} USING GIN (
-        (jsonb_path_query_array(${tableDetails.columns.receiptLogs.field}, '$[*].address')) jsonb_path_ops
-      );`
-    )
-    .catch(console.error);
   } catch (err) {
     console.log(
       `Error while initializing txn table chainId: ${chainId} in psql.`,
@@ -152,6 +131,62 @@ const _initTxn = async () => {
     );
   } catch (err) {
     console.log("Error while initializing txn table in psql.", err.message);
+  }
+};
+
+const _initChainwiseLogs = async (tableName, chainId) => {
+  try {
+    const tableDetails = psql.tables.logs;
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS ${tableName} (
+        ${tableDetails.columns.txnHash.field} CHARACTER(66) NOT NULL,
+        ${tableDetails.columns.contractAddr.field} CHARACTER(42),
+        ${tableDetails.columns.topics.field} TEXT[],
+        ${tableDetails.columns.data.field} TEXT,
+        ${tableDetails.columns.logIndex.field} BIGINT
+      )`
+    );
+
+    // Indexing contractAddr & topics[0]
+    client
+      .query(
+        `CREATE INDEX IF NOT EXISTS idxLogsTxnHash_${chainId} ON ${tableName} ("${tableDetails.columns.txnHash.field}");`
+      )
+      .catch(console.error);
+
+    client
+      .query(
+        `CREATE INDEX IF NOT EXISTS idxContractAddr_${chainId} ON ${tableName} ("${tableDetails.columns.contractAddr.field}") WHERE ${tableDetails.columns.contractAddr.field} IS NOT NULL;`
+      )
+      .catch(console.error);
+    
+    client
+      .query(
+        `CREATE INDEX IF NOT EXISTS idxFirstTopic_${chainId} ON ${tableName} ((${tableDetails.columns.topics.field}[1])) WHERE (${tableDetails.columns.topics.field}[1]) IS NOT NULL;`
+      )
+      .catch(console.error);
+  } catch (err) {
+    console.log(
+      `Error while initializing logs table chainId: ${chainId}.`,
+      err.message
+    );
+  }
+}
+
+const _initLogs = async () => {
+  try {
+    const tableNames = [];
+    Object.keys(rpc).forEach((key) => {
+      tableNames.push(`logs_${key}`);
+    });
+
+    await Promise.all(
+      tableNames.map(async (tableName) => {
+        await _initChainwiseLogs(tableName, parseInt(tableName.split("_")[1]));
+      })
+    );
+  } catch (err) {
+    console.log("Error while initializing logs table in psql.", err.message);
   }
 };
 
@@ -203,9 +238,58 @@ const saveTxnsToDb = async (dataRows, chainId) => {
   }
 };
 
+const saveLogsToDb = async (dataRows, chainId) => {
+  try {
+    if (!dataRows.length) return;
+    const tableDetails = psql.tables.logs;
+    const keyTypeMap = {};
+    const keys = Object.keys(dataRows[0]);
+    const fields = [];
+    const placeholderValues = [];
+    const values = [];
+
+    // create fields to update
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      keyTypeMap[key] = tableDetails.columns[key].type;
+      fields.push(tableDetails.columns[key].field);
+    }
+
+    // create placeholder index and values to update
+    let placeholderCount = 0;
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      const placeholderRow = [];
+
+      for (let j = 0; j < keys.length; j++) {
+        const key = keys[j];
+        const postfix = keyTypeMap[key] == "jsonb" ? "::jsonb" : "";
+
+        placeholderRow.push(`$${placeholderCount + 1}${postfix}`);
+        values.push(row[key]);
+        placeholderCount++;
+      }
+      placeholderValues.push(`(${placeholderRow.join(",")})`);
+    }
+
+    const _placeholderValues = placeholderValues.join(",");
+    const tableName = `logs_${chainId}`;
+
+    await client.query(
+      `INSERT INTO ${tableName}(${fields.join(",")}) VALUES ${_placeholderValues};`,
+      values
+    );
+
+    console.log(`Logs inserted successfully on chainId: ${chainId}`);
+  } catch (error) {
+    console.error(`Error inserting logs on chainId: ${chainId}:`, error);
+  }
+};
+
 const init = async () => {
   await client.connect();
   await _initTxn();
+  await _initLogs();
   await _initTokenBackTable();
   await _initBalanceHistory();
 };
@@ -232,4 +316,4 @@ const insert = async ({ tableDetails, row, onConflictKeys = [] }) => {
   await client.query(query, values);
 };
 
-module.exports = { init, insert, saveTxnsToDb };
+module.exports = { init, insert, saveTxnsToDb, saveLogsToDb };

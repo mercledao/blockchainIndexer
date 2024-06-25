@@ -18,7 +18,7 @@ const {
 } = require("../cacheHelper");
 
 const { db } = require("../mongoHelper");
-const { saveTxnsToDb } = require("../psqlHelper");
+const { saveTxnsToDb, saveLogsToDb } = require("../psqlHelper");
 
 const blockConsumerJobs = {};
 const isConsuming = {};
@@ -48,7 +48,7 @@ const saveTxnsWithReceipt = async (chainId, blockNumber, receipts) => {
 
   const txns = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
   const mp = {}; // Mapping txHash in Receipts to Receipt Index
-  const saveTxns = [];
+  const saveTxns = [], saveLogs = [];
 
   // Start mapping
   receipts.forEach((receipt, index) => {
@@ -82,22 +82,25 @@ const saveTxnsWithReceipt = async (chainId, blockNumber, receipts) => {
         receiptCumulativeGasUsed: txn.receipt.cumulativeGasUsed,
         receiptEffectiveGasPrice: txn.receipt.effectiveGasPrice,
         receiptGasUsed: txn.receipt.gasUsed,
-        receiptLogs: JSON.stringify(
-          txn.receipt.logs.map((log) => ({
-              address: log.address,
-              topics: log.topics,
-              data: log.data,
-              idx: parseInt(log.logIndex),
-          }))
-        ),
         receiptLogsBloom: txn.receipt.logsBloom,
         methodId: txn.input.length >= 10 ? txn.input.slice(0, 10) : null
+      });
+
+      // save logs
+      txn.receipt.logs.forEach((log) => {
+        saveLogs.push({
+          txnHash: txn.hash,
+          contractAddr: log.address,
+          topics: log.topics,
+          data: log.data,
+          logIndex: parseInt(log.logIndex),
+        });
       });
     };
   });
 
-  // Not awaiting for save here.
-  saveTxnsToDb(saveTxns, chainId);
+  await saveTxnsToDb(saveTxns, chainId);
+  saveLogsToDb(saveLogs, chainId);
 }
 
 // todo: check if locked consumer is consuming. if not unlock it

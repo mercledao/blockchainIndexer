@@ -746,10 +746,19 @@ const psql = {
         receiptCumulativeGasUsed: {field: "receipt_cumulative_gas_used", as: "receiptCumulativeGasUsed"},
         receiptEffectiveGasPrice: {field: "receipt_effective_gas_price", as: "receiptEffectiveGasPrice"},
         receiptGasUsed: {field: "receipt_gas_used", as: "receiptGasUsed"},
-        receiptLogs: { field: "receipt_logs", as: "receiptLogs", type: "jsonb" },
         receiptLogsBloom: {field: "receipt_logs_bloom", as: "receiptLogsBloom"},
         methodId: {field: "method_id", as: "methodId"},
       }, 
+    },
+    logs: {
+      name: "logs",
+      columns: {
+        txnHash: { field: "txn_hash", as: "txnHash" },
+        contractAddr: {field: "contract_addr", as: "contractAddr"},
+        topics: {field: "topics", as: "topics"},
+        data: {field: "data", as: "data"},
+        logIndex: {field: "log_index", as: "logIndex"},
+      }
     }
   },
 };
