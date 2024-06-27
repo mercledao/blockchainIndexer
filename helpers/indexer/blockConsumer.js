@@ -24,7 +24,6 @@ const blockConsumerJobs = {};
 const isConsuming = {};
 
 const delayed = {}; // delay blocknumber
-const latestBlock = {};
 
 const init = async () => {
   await populateTaskConfig();
@@ -282,17 +281,6 @@ const saveConsumedBlockToDbJob = async () => {
       const consumedBlocks = await getProcessedBlockQueue();
       if (consumedBlocks?.length) {
         // await db.blocksTracked.insertMany(consumedBlocks, { ordered: false });
-        
-        consumedBlocks.forEach((block) => {
-          const newBlockChainId = `${block.chainId}`;
-          const newBlockNumber = `${block.blockNumber}`;
-
-          if (
-            !latestBlock[newBlockChainId] ||
-            latestBlock[newBlockChainId] < newBlockNumber
-          )
-            latestBlock[newBlockChainId] = newBlockNumber;
-        });
       }
     } catch (e) {
       console.error("could not save consumed blocks to db", e);
@@ -371,4 +359,4 @@ const _prepareTaskConfig = (task) => {
   return task;
 };
 
-module.exports = { init, populateTaskConfig, _consumeBlock, latestBlock };
+module.exports = { init, populateTaskConfig, _consumeBlock };

@@ -5,7 +5,7 @@ const { lastTrackedBlocks, addBlocksQueue, clearBlocksQueue, maintainProcessingQ
 
 const blockProducerJobs = { maintain: {} };
 const lockProducer = {};
-const { latestBlock } = require("./blockConsumer");
+const { _getLastTrackedBlocksDb } = require("../psqlHelper");
 
 const init = async () => {
   await produceBlock();
@@ -16,13 +16,14 @@ const init = async () => {
  */
 const produceBlock = async () => {
   // const dbTrackedBlocks = await _getLastTrackedBlocksDb();
+  const dbTrackedBlocks = await _getLastTrackedBlocksDb();
   const supportedChains = Object.keys(rpc);
 
   // track missed blocks
   for (let i = 0; i < supportedChains.length; i++) {
     const chainId = supportedChains[i];
     await clearBlocksQueue(chainId);
-    lastTrackedBlocks[chainId] = latestBlock[chainId];
+    lastTrackedBlocks[chainId] = dbTrackedBlocks[chainId];
   }
 
   // track new blocks

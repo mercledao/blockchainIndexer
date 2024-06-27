@@ -316,4 +316,25 @@ const insert = async ({ tableDetails, row, onConflictKeys = [] }) => {
   await client.query(query, values);
 };
 
-module.exports = { init, insert, saveTxnsToDb, saveLogsToDb };
+const _getLastTrackedBlocksDb = async () => {
+  try {
+    const blocks = {};
+    const chainIds = Object.keys(rpc);
+
+    await Promise.allSettled(
+      chainIds.map(async (chainId) => {
+        const res = await client.query(`
+        SELECT MAX(block_number) FROM txn_${chainId};  
+      `);
+
+        blocks[chainId] = res?.rows[0]?.max || undefined;
+      })
+    );
+
+    return blocks;
+  } catch (err) {
+    console.log("error getting last tracked blocks from db.", err.message);
+  }
+};
+
+module.exports = { init, insert, saveTxnsToDb, saveLogsToDb, _getLastTrackedBlocksDb };

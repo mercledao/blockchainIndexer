@@ -3,16 +3,19 @@ const ethersHelper = require("../ethersHelper");
 const zeroXHelper = require("./zeroXHelper");
 const coingeckoHelper = require("./coingeckoHelper");
 const pythHelper = require("./pythHelper");
-const priceIndexer=require('./priceIndexerHelper');
+const priceIndexer = require("./priceIndexerHelper");
 const { misc } = require("../../constants");
 
 const getUsdPriceOf = async ({ chainId, tokenAddress }) => {
-  if (tokenAddress == misc.gasToken[chainId]?.usdAddress || tokenAddress == misc.gasToken[chainId]?.daiAddress)
+  if (
+    tokenAddress == misc.gasToken[chainId]?.usdAddress ||
+    tokenAddress == misc.gasToken[chainId]?.daiAddress
+  )
     return 1;
-   const result = await priceIndexer.getUsdPrice(chainId,tokenAddress)
-   if (result) {
-    return result?.price
-   }
+  const result = await priceIndexer.getUsdPrice(chainId, tokenAddress);
+  if (result) {
+    return result?.price;
+  }
   if (chainId != 100 && chainId != 5000 && chainId != 8453) {
     try {
       return await coingeckoHelper.getUsdPriceOf({ chainId, tokenAddress });
@@ -46,12 +49,20 @@ const getTradeUsd = async (txn, tokenAddress, sellAmount) => {
 
     return { tokenUsd, tokenValue: tokenUsd * sellAmountFormatted };
   } catch (e) {
-    console.error(`_getTradeUsd::${txn.chainId}::${txn.hash}::${tokenAddress}::${sellAmount}`, e);
+    console.error(
+      `_getTradeUsd::${txn.chainId}::${txn.hash}::${tokenAddress}::${sellAmount}`,
+      e
+    );
     throw e;
   }
 };
 
-const getTradeUsdTry = async (txn, tokenAddress, sellAmount, defaultValue = Infinity) => {
+const getTradeUsdTry = async (
+  txn,
+  tokenAddress,
+  sellAmount,
+  defaultValue = Infinity
+) => {
   try {
     return await getTradeUsd(txn, tokenAddress, sellAmount);
   } catch (e) {
