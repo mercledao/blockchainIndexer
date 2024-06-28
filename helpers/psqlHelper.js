@@ -60,9 +60,6 @@ const _initBalanceHistory = async () => {
 const _initChainwiseTables = async (tableName, chainId) => {
   try {
     const tableDetails = psql.tables.txn;
-
-    await client.query(`DROP TABLE IF EXISTS ${tableName};`);
-
     await client.query(
       `CREATE TABLE IF NOT EXISTS ${tableName} (
         ${tableDetails.columns.blockNumber.field} BIGINT NOT NULL,
@@ -140,9 +137,6 @@ const _initTxn = async () => {
 const _initChainwiseLogs = async (tableName, chainId) => {
   try {
     const tableDetails = psql.tables.logs;
-
-    await client.query(`DROP TABLE IF EXISTS ${tableName};`);
-
     await client.query(
       `CREATE TABLE IF NOT EXISTS ${tableName} (
         ${tableDetails.columns.txnHash.field} CHARACTER(66) NOT NULL,
@@ -349,7 +343,20 @@ const getTxnsCountFromDb = async (chainId, blockNumber) => {
         SELECT COUNT(*) FROM txn_${chainId} WHERE block_number = ${blockNumber};
       `);
 
-    return data?.rows[0]?.count || 0;
+    return parseInt(data?.rows[0]?.count || 0);
+  } catch (err) {
+    console.log(err.message);
+  }
+};
+
+const getAllBlockNumbers = async (chainId) => {
+  try {
+    const data = await client.query(`
+        SELECT DISTINCT block_number FROM txn_${chainId} ORDER BY block_number ASC;
+      `);
+
+    const blockNumbers = data?.rows.map((obj) => parseInt(obj.block_number)) || [];
+    return blockNumbers;
   } catch (err) {
     console.log(err.message);
   }
@@ -361,5 +368,6 @@ module.exports = {
   saveTxnsToDb,
   saveLogsToDb,
   _getLastTrackedBlocksDb,
-  getTxnsCountFromDb
+  getTxnsCountFromDb,
+  getAllBlockNumbers
 };
