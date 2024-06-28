@@ -82,6 +82,12 @@ const popBlock = async (chainId) => {
   return blockNumber;
 };
 
+const printLength = async (chainId) => {
+  const len = await redisClient.LLEN(id.redis.blocksQueue(chainId));
+  console.log("qlen: ", len);
+  return len;
+}
+
 // only use this to reinitialize the blocks queue
 const clearBlocksQueue = async (chainId) => {
   try {
@@ -155,4 +161,5 @@ module.exports = {
   getProcessedBlockQueue,
 
   delKey,
+  printLength
 };

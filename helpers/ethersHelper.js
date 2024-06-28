@@ -73,6 +73,23 @@ const getBlockTransactionsWithoutChecksum = async (chainId, blockNumber) => {
   return data?.result?.transactions || [];
 };
 
+const getBlockNumber = async (chainId) => {
+  const data = await (
+    await fetch(rpc[chainId].json()[0], {
+      method: "POST",
+      "content-Type": "application/json",
+      body: JSON.stringify({
+        method: "eth_blockNumber",
+        params: [],
+        id: 1,
+        jsonrpc: "2.0"
+      }),
+    })
+  ).json();
+
+  return data?.result || undefined;
+};
+
 const getBlockTransactions = async (chainId, blockNumber) => {
   return (await getProvider(chainId).getBlockWithTransactions(blockNumber))?.transactions || [];
 };
@@ -156,4 +173,5 @@ module.exports = {
   getDecimals,
   getSymbol,
   getBlockTransactionsWithoutChecksum,
+  getBlockNumber
 };

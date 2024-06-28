@@ -60,6 +60,9 @@ const _initBalanceHistory = async () => {
 const _initChainwiseTables = async (tableName, chainId) => {
   try {
     const tableDetails = psql.tables.txn;
+
+    await client.query(`DROP TABLE IF EXISTS ${tableName};`);
+
     await client.query(
       `CREATE TABLE IF NOT EXISTS ${tableName} (
         ${tableDetails.columns.blockNumber.field} BIGINT NOT NULL,
@@ -137,6 +140,9 @@ const _initTxn = async () => {
 const _initChainwiseLogs = async (tableName, chainId) => {
   try {
     const tableDetails = psql.tables.logs;
+
+    await client.query(`DROP TABLE IF EXISTS ${tableName};`);
+
     await client.query(
       `CREATE TABLE IF NOT EXISTS ${tableName} (
         ${tableDetails.columns.txnHash.field} CHARACTER(66) NOT NULL,
@@ -337,4 +343,23 @@ const _getLastTrackedBlocksDb = async () => {
   }
 };
 
-module.exports = { init, insert, saveTxnsToDb, saveLogsToDb, _getLastTrackedBlocksDb };
+const getTxnsCountFromDb = async (chainId, blockNumber) => {
+  try {
+    const data = await client.query(`
+        SELECT COUNT(*) FROM txn_${chainId} WHERE block_number = ${blockNumber};
+      `);
+
+    return data?.rows[0]?.count || 0;
+  } catch (err) {
+    console.log(err.message);
+  }
+};
+
+module.exports = {
+  init,
+  insert,
+  saveTxnsToDb,
+  saveLogsToDb,
+  _getLastTrackedBlocksDb,
+  getTxnsCountFromDb
+};

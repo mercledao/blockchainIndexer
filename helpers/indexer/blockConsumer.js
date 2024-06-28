@@ -15,10 +15,12 @@ const {
   addBlocksQueue,
   addProcessedBlockQueue,
   getProcessedBlockQueue,
+  printLength
 } = require("../cacheHelper");
 
 const { db } = require("../mongoHelper");
 const { saveTxnsToDb, saveLogsToDb } = require("../psqlHelper");
+const { verify } = require("../verifyScript");
 
 const blockConsumerJobs = {};
 const isConsuming = {};
@@ -43,64 +45,69 @@ const consumeBlockJob = async () => {
   }
 };
 
-const saveTxnsWithReceipt = async (chainId, blockNumber, receipts) => {
-  if(!receipts) return;
-
-  const txns = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
-  const mp = {}; // Mapping txHash in Receipts to Receipt Index
-  const saveTxns = [], saveLogs = [];
-
-  // Start mapping
-  receipts.forEach((receipt, index) => {
-    mp[receipt.transactionHash] = index;
-  });
-
-  // Attaching receipt to txn
-  txns.forEach((tx) => {
-    tx.receipt = receipts[mp[tx.hash]];
-  });
-
-  // Save to db
-  txns.forEach((txn) => {
-    // Only save when receipt status === "0x1"
-    if(txn.receipt.status === "0x1") {
-      saveTxns.push({
-        blockNumber: txn.blockNumber,
-        fromAddr: txn.from,
-        gas: txn.gas,
-        gasPrice: txn.gasPrice,
-        maxFeePerGas: txn.maxFeePerGas,
-        maxPriorityFeePerGas: txn.maxPriorityFeePerGas,
-        txnHash: txn.hash,
-        input: txn.input,
-        nonce: txn.nonce,
-        toAddr: txn.to,
-        value: txn.value,
-        type: txn.type,
-        chainId: chainId,
-        receiptContractAddress: txn.receipt.contractAddress,
-        receiptCumulativeGasUsed: txn.receipt.cumulativeGasUsed,
-        receiptEffectiveGasPrice: txn.receipt.effectiveGasPrice,
-        receiptGasUsed: txn.receipt.gasUsed,
-        receiptLogsBloom: txn.receipt.logsBloom,
-        methodId: txn.input.length >= 10 ? txn.input.slice(0, 10) : null
-      });
-
-      // save logs
-      txn.receipt.logs.forEach((log) => {
-        saveLogs.push({
+const saveTxnsWithReceipt = async (chainId, blockNumber) => {
+  try {
+    const receipts = await getBlockReceipts(chainId, blockNumber);
+    if(!receipts) return;
+  
+    const txns = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
+    const mp = {}; // Mapping txHash in Receipts to Receipt Index
+    const saveTxns = [], saveLogs = [];
+  
+    // Start mapping
+    receipts.forEach((receipt, index) => {
+      mp[receipt.transactionHash] = index;
+    });
+  
+    // Attaching receipt to txn
+    txns.forEach((tx) => {
+      tx.receipt = receipts[mp[tx.hash]];
+    });
+  
+    // Save to db
+    txns.forEach((txn) => {
+      // Only save when receipt status === "0x1"
+      if(txn.receipt.status === "0x1") {
+        saveTxns.push({
+          blockNumber: txn.blockNumber,
+          fromAddr: txn.from,
+          gas: txn.gas,
+          gasPrice: txn.gasPrice,
+          maxFeePerGas: txn.maxFeePerGas,
+          maxPriorityFeePerGas: txn.maxPriorityFeePerGas,
           txnHash: txn.hash,
-          contractAddr: log.address,
-          topics: log.topics,
-          data: log.data,
-          logIndex: parseInt(log.logIndex),
+          input: txn.input,
+          nonce: txn.nonce,
+          toAddr: txn.to,
+          value: txn.value,
+          type: txn.type,
+          chainId: chainId,
+          receiptContractAddress: txn.receipt.contractAddress,
+          receiptCumulativeGasUsed: txn.receipt.cumulativeGasUsed,
+          receiptEffectiveGasPrice: txn.receipt.effectiveGasPrice,
+          receiptGasUsed: txn.receipt.gasUsed,
+          receiptLogsBloom: txn.receipt.logsBloom,
+          methodId: txn.input.length >= 10 ? txn.input.slice(0, 10) : null
         });
-      });
-    };
-  });
-
-  await saveTxnsToDb(saveTxns, chainId);
-  saveLogsToDb(saveLogs, chainId);
+  
+        // save logs
+        txn.receipt.logs.forEach((log) => {
+          saveLogs.push({
+            txnHash: txn.hash,
+            contractAddr: log.address,
+            topics: log.topics,
+            data: log.data,
+            logIndex: parseInt(log.logIndex),
+          });
+        });
+      };
+    });
+  
+    saveTxnsToDb(saveTxns, chainId).catch((err) => console.log(err.message));
+    saveLogsToDb(saveLogs, chainId).catch((err) => console.log(err.message));
+  } catch (err) {
+    console.log("Error while saving txns with receipt.", err.message);
+  }
 }
 
 // todo: check if locked consumer is consuming. if not unlock it
@@ -116,13 +123,12 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
     let multiBlocks = [];
     while (blockNumber) {
       // save txns with receipt
-      const receipts = await getBlockReceipts(chainId, blockNumber);
-      await saveTxnsWithReceipt(chainId, blockNumber, receipts);
+      saveTxnsWithReceipt(chainId, blockNumber);
 
       multiBlocks.push(
         rpc[chainId].geth
           ? _consumeBlockGeth(chainId, parseInt(blockNumber))
-          : _consumeBlock(chainId, blockNumber, receipts),
+          : _consumeBlock(chainId, blockNumber),
       );
       if (multiBlocks.length > 20) {
         console.log(`waiting ${chainId}`);
@@ -142,8 +148,10 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
 /**
  * @param {boolean} isOldBlocks used to track old blocks for a chain, making things retroactive
  */
-const _consumeBlock = async (chainId, blockNumber, receipts, isOldBlocks) => {
+const _consumeBlock = async (chainId, blockNumber, isOldBlocks) => {
   try {
+    const receipts = await getBlockReceipts(chainId, blockNumber);
+
     // simply log the error, everything is handled in catch block
     if (!receipts?.length) {
       console.log("null block", chainId, blockNumber);
