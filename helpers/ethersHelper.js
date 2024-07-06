@@ -162,6 +162,27 @@ const getSymbol = async (tokenAddress, chainId) => {
   return symbol;
 };
 
+const getTxnReceipt = async (chainId, txnHash) => {
+  try {
+    const data = await (
+      await fetch(rpc[chainId].json()[0], {
+        method: "POST",
+        "content-Type": "application/json",
+        body: JSON.stringify({
+          method: "eth_getTransactionReceipt",
+          params: [`${txnHash}`],
+          id: 1,
+          jsonrpc: "2.0"
+        }),
+      })
+    ).json();
+  
+    return data?.result || undefined;
+  } catch (e) {
+    console.error("could not get receipt: ", e);
+  }
+}
+
 module.exports = {
   init,
   getProvider,
@@ -173,5 +194,6 @@ module.exports = {
   getDecimals,
   getSymbol,
   getBlockTransactionsWithoutChecksum,
-  getBlockNumber
+  getBlockNumber,
+  getTxnReceipt
 };

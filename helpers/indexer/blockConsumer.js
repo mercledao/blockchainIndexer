@@ -4,6 +4,7 @@ const {
   getBlockReceipts,
   getBlockTransactions,
   getBlockTransactionsWithoutChecksum,
+  getTxnReceipt,
 } = require("../ethersHelper");
 const txnIndexer = require("./txnIndexer");
 const eventIndexer = require("./eventIndexer");
@@ -28,9 +29,7 @@ const isConsuming = {};
 const delayed = {}; // delay blocknumber
 
 const init = async () => {
-  await populateTaskConfig();
   await consumeBlockJob();
-  await saveConsumedBlockToDbJob();
 };
 
 const consumeBlockJob = async () => {
@@ -45,12 +44,8 @@ const consumeBlockJob = async () => {
   }
 };
 
-const saveTxnsWithReceipt = async (chainId, blockNumber) => {
+const saveTxnsWithReceipt = async (chainId, receipts, txns) => {
   try {
-    const receipts = await getBlockReceipts(chainId, blockNumber);
-    if(!receipts) return;
-  
-    const txns = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
     const mp = {}; // Mapping txHash in Receipts to Receipt Index
     const saveTxns = [], saveLogs = [];
   
@@ -103,8 +98,10 @@ const saveTxnsWithReceipt = async (chainId, blockNumber) => {
       };
     });
   
-    saveTxnsToDb(saveTxns, chainId).catch((err) => console.log(err.message));
-    saveLogsToDb(saveLogs, chainId).catch((err) => console.log(err.message));
+    await Promise.allSettled([
+      saveTxnsToDb(saveTxns, chainId), 
+      saveLogsToDb(saveLogs, chainId)
+    ]);  
   } catch (err) {
     console.log("Error while saving txns with receipt.", err.message);
   }
@@ -120,21 +117,12 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
 
     isConsuming[chainId] = true;
 
-    let multiBlocks = [];
     while (blockNumber) {
       // save txns with receipt
-      saveTxnsWithReceipt(chainId, blockNumber);
 
-      multiBlocks.push(
-        rpc[chainId].geth
+      rpc[chainId].geth
           ? _consumeBlockGeth(chainId, parseInt(blockNumber))
-          : _consumeBlock(chainId, blockNumber),
-      );
-      if (multiBlocks.length > 20) {
-        console.log(`waiting ${chainId}`);
-        await Promise.allSettled(multiBlocks);
-        multiBlocks = [];
-      }
+          : _consumeBlock(chainId, blockNumber);
 
       blockNumber = await popBlock(chainId);
     }
@@ -150,65 +138,29 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
  */
 const _consumeBlock = async (chainId, blockNumber, isOldBlocks) => {
   try {
-    const receipts = await getBlockReceipts(chainId, blockNumber);
+    const txns = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
+    if(!txns.length) {
 
-    // simply log the error, everything is handled in catch block
-    if (!receipts?.length) {
       console.log("null block", chainId, blockNumber);
       return;
-      // throw new Error("null block");
     }
-
-    let processingTxns = [];
-    for (let i = 0; i < receipts.length; i++) {
-      const receipt = receipts[i];
-
-      receipt.from = ethers.utils.getAddress(receipt.from);
-      // if null, txn is for creating contract where contractAddress contains the details
-      receipt.to = ethers.utils.getAddress(receipt.to || receipt.contractAddress);
-      receipt.status = parseInt(receipt.status);
-
-      // if txn failed don't process it
-      if (receipt.status != 1) continue;
-
-      // process the txn for event
-      const eventProcessors = eventIndexer.consumeReceiptForEvent(
-        task,
-        trackEvents,
-        chainId,
-        receipt,
-      );
-      if (eventProcessors?.length) processingTxns.push(...eventProcessors);
-
-      const txnProcessor = txnIndexer.consumeReceiptForTxn(task, trackTxns, chainId, receipt);
-      if (txnProcessor) processingTxns.push(txnProcessor);
-
-      // todo: use bottleneck instead of promise
-      if (processingTxns.length <= 30) continue;
-      await Promise.allSettled(processingTxns);
-      processingTxns = [];
-    }
-
-    // track consumed block
-    addProcessedBlockQueue(chainId, blockNumber).catch((e) =>
-      console.error(`could not save processed block ${chainId}:${blockNumber}`, e),
-    );
+    const receipts = await getBlockReceipts(chainId, blockNumber);
+    
+    await saveTxnsWithReceipt(chainId, receipts, txns);
   } catch (e) {
     console.error(`could not consume block ${chainId}::${blockNumber}`, e);
-    // no need to republish old blocks
-    if (isOldBlocks) return;
 
     // debounce timer
     if (!delayed[chainId]) delayed[chainId] = {};
     if (!delayed[chainId][blockNumber]) delayed[chainId][blockNumber] = 0;
     delayed[chainId][blockNumber]++;
 
-    if (delayed[chainId][blockNumber] < 1) {
+    if (delayed[chainId][blockNumber] <= 5) {
       setTimeout(() => {
         addBlocksQueue(chainId, [blockNumber]).catch((e) =>
           console.error("error republishing errored consumed block", e),
         );
-      }, 10000 * delayed[chainId][blockNumber]);
+      }, parseInt(rpc[chainId].consumeRate));
     } else {
       delete delayed[chainId][blockNumber];
       console.log("ignoring null block after multiple retries", chainId, blockNumber);
@@ -221,59 +173,34 @@ const _consumeBlock = async (chainId, blockNumber, isOldBlocks) => {
  */
 const _consumeBlockGeth = async (chainId, blockNumber, isOldBlocks) => {
   try {
-    const txns = await getBlockTransactions(chainId, blockNumber);
+    const txns = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
+    if(!txns.length) {
 
-    // simply log the error, everything is handled in catch block
-    if (!txns?.length) {
       console.log("null block", chainId, blockNumber);
       return;
-      // throw new Error("null block");
     }
+    const receipts = [];
 
-    let processingTxns = [];
-    for (let i = 0; i < txns.length; i++) {
-      const txn = txns[i];
+    await Promise.allSettled(txns.map(async (txn) => {
+      const receipt = await getTxnReceipt(chainId, txn.hash);
+      receipts.push(receipt);
+    }));
 
-      txn.from = ethers.utils.getAddress(txn.from || ethers.constants.AddressZero);
-      // if null, txn is for creating contract where contractAddress contains the details
-      txn.to = ethers.utils.getAddress(
-        txn.to || txn.contractAddress || ethers.constants.AddressZero,
-      );
-
-      // @IMPORTANT: NOT PROCESSING EVENTS FOR GETH NODES as it is expensive
-      // process the txn for event
-      // const eventProcessors = eventIndexer.consumeReceiptForEvent(task, trackEvents, chainId, receipt);
-      // if (eventProcessors?.length) processingTxns.push(...eventProcessors);
-
-      const txnProcessor = txnIndexer.consumeTxnGeth(task, trackTxns, chainId, txn);
-      if (txnProcessor) processingTxns.push(txnProcessor);
-
-      // todo: use bottleneck instead of promise
-      if (processingTxns.length <= 30) continue;
-      await Promise.allSettled(processingTxns);
-      processingTxns = [];
-    }
-
-    // track consumed block
-    addProcessedBlockQueue(chainId, blockNumber).catch((e) =>
-      console.error(`could not save processed block ${chainId}:${blockNumber}`, e),
-    );
+    await saveTxnsWithReceipt(chainId, receipts, txns);
   } catch (e) {
     console.error(`could not consume block ${chainId}::${blockNumber}`, e);
-    // no need to republish old blocks
-    if (isOldBlocks) return;
 
     // debounce timer
     if (!delayed[chainId]) delayed[chainId] = {};
     if (!delayed[chainId][blockNumber]) delayed[chainId][blockNumber] = 0;
     delayed[chainId][blockNumber]++;
 
-    if (delayed[chainId][blockNumber] < 1) {
+    if (delayed[chainId][blockNumber] <= 5) {
       setTimeout(() => {
         addBlocksQueue(chainId, [blockNumber]).catch((e) =>
           console.error("error republishing errored consumed block", e),
         );
-      }, 10000 * delayed[chainId][blockNumber]);
+      }, parseInt(rpc[chainId].consumeRate));
     } else {
       delete delayed[chainId][blockNumber];
       console.log("ignoring null block after multiple retries", chainId, blockNumber);
@@ -281,90 +208,4 @@ const _consumeBlockGeth = async (chainId, blockNumber, isOldBlocks) => {
   }
 };
 
-const saveConsumedBlockToDbJob = async () => {
-  blockConsumerJobs.saveConsumedBlockToDb = setInterval(async () => {
-    if (isConsuming.saveConsumedBlockToDb) return;
-    try {
-      isConsuming.saveConsumedBlockToDb = true;
-      const consumedBlocks = await getProcessedBlockQueue();
-      if (consumedBlocks?.length) {
-        // await db.blocksTracked.insertMany(consumedBlocks, { ordered: false });
-      }
-    } catch (e) {
-      console.error("could not save consumed blocks to db", e);
-    } finally {
-      isConsuming.saveConsumedBlockToDb = false;
-    }
-  }, dateMillis.min_1);
-};
-
-const populateTaskConfig = async () => {
-  try {
-    const configs = await db.indexerConfig.find({}).toArray();
-
-    // clear old task
-    Object.keys(task).forEach((key) => {
-      delete task[key];
-    });
-    Object.keys(trackTxns).forEach((key) => {
-      delete trackTxns[key];
-    });
-    Object.keys(trackEvents).forEach((key) => {
-      delete trackEvents[key];
-    });
-
-    // assign new task values
-
-    for (let i = 0; i < configs.length; i++) {
-      const config = configs[i];
-      switch (config.type) {
-        case id.mongodb.indexerConfigType.task: {
-          task[config._id] = _prepareTaskConfig(config);
-          break;
-        }
-        case id.mongodb.indexerConfigType.chainTask: {
-          if (!trackTxns[config.chainId]) trackTxns[config.chainId] = {};
-          trackTxns[config.chainId][config.contractAddress] = config;
-          break;
-        }
-        case id.mongodb.indexerConfigType.eventTask: {
-          if (!trackEvents[config.chainId]) trackEvents[config.chainId] = {};
-          if (!trackEvents[config.chainId][config.contractAddress])
-            trackEvents[config.chainId][config.contractAddress] = [];
-
-          trackEvents[config.chainId][config.contractAddress].push(config);
-          break;
-        }
-      }
-    }
-  } catch (e) {
-    console.error("could not get indexer task config", e);
-  }
-};
-
-const _prepareTaskConfig = (task) => {
-  if (task.integrators) {
-    task.integrators = new Set(task.integrators?.map((v) => v.toLowerCase()));
-  }
-  switch (task.abi) {
-    case "lifiDiamondAbi": {
-      break;
-    }
-    case "cowswapGpV2SettlementAbi": {
-      break;
-    }
-    case "cowswapEthFlowAbi": {
-      break;
-    }
-    case "yatNftAbi": {
-      break;
-    }
-    case "poapAbi": {
-      task.eventIds = new Set(task.eventIds || []);
-      break;
-    }
-  }
-  return task;
-};
-
-module.exports = { init, populateTaskConfig, _consumeBlock };
+module.exports = { init, _consumeBlock };
