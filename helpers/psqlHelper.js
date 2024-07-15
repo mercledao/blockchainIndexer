@@ -1,5 +1,6 @@
 const { Client } = require("pg");
 const { psql, rpc } = require("../constants");
+const constants = require("../constants");
 
 const client = new Client();
 
@@ -57,6 +58,22 @@ const _initBalanceHistory = async () => {
   );
 };
 
+const _initIndexerConstants = async () => {
+  try {
+    const tableDetails = psql.tables.indexer_constants;
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS ${tableDetails.name} (
+        ${tableDetails.columns.constants.field} JSONB
+      )`
+    );
+  } catch (err) {
+    console.log(
+      `Error while initializing indexer constants table.`,
+      err.message
+    );
+  }
+};
+
 const _initChainwiseTables = async (tableName, chainId) => {
   try {
     const tableDetails = psql.tables.txn;
@@ -80,7 +97,8 @@ const _initChainwiseTables = async (tableName, chainId) => {
         ${tableDetails.columns.receiptEffectiveGasPrice.field} BIGINT,
         ${tableDetails.columns.receiptGasUsed.field} BIGINT,
         ${tableDetails.columns.receiptLogsBloom.field} TEXT,
-        ${tableDetails.columns.methodId.field} CHARACTER(10)
+        ${tableDetails.columns.methodId.field} CHARACTER(10),
+        ${tableDetails.columns.timestamp.field} BIGINT
       )`
     );
 
@@ -292,6 +310,8 @@ const init = async () => {
   await _initLogs();
   await _initTokenBackTable();
   await _initBalanceHistory();
+  await _initIndexerConstants();
+  await saveIndexerConstants();
 };
 
 const insert = async ({ tableDetails, row, onConflictKeys = [] }) => {
@@ -359,6 +379,23 @@ const getAllBlockNumbers = async (chainId) => {
     return blockNumbers;
   } catch (err) {
     console.log(err.message);
+  }
+};
+
+const saveIndexerConstants = async () => {
+  try {
+    const tableDetails = psql.tables.indexer_constants;
+    const data = JSON.stringify(constants);
+
+    await client.query(
+      `
+        INSERT INTO ${tableDetails.name} (${tableDetails.columns.constants.field}) 
+        VALUES ($1);
+      `,
+      [data]
+    );
+  } catch (err) {
+    console.log(`Error saving indexer constants to db.`, err.message);
   }
 };
 

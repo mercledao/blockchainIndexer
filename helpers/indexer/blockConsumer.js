@@ -44,7 +44,7 @@ const consumeBlockJob = async () => {
   }
 };
 
-const saveTxnsWithReceipt = async (chainId, receipts, txns) => {
+const saveTxnsWithReceipt = async (chainId, receipts, txns, timestamp) => {
   try {
     const mp = {}; // Mapping txHash in Receipts to Receipt Index
     const saveTxns = [], saveLogs = [];
@@ -64,25 +64,26 @@ const saveTxnsWithReceipt = async (chainId, receipts, txns) => {
       // Only save when receipt status === "0x1"
       if(txn.receipt.status === "0x1") {
         saveTxns.push({
-          blockNumber: txn.blockNumber,
+          blockNumber: txn.blockNumber ? parseInt(txn.blockNumber) : 0,
           fromAddr: txn.from,
-          gas: txn.gas,
-          gasPrice: txn.gasPrice,
-          maxFeePerGas: txn.maxFeePerGas,
-          maxPriorityFeePerGas: txn.maxPriorityFeePerGas,
+          gas: txn.gas ? parseInt(txn.gas) : 0,
+          gasPrice: txn.gasPrice ? parseInt(txn.gasPrice) : 0,
+          maxFeePerGas: txn.maxFeePerGas ? parseInt(txn.maxFeePerGas) : 0,
+          maxPriorityFeePerGas: txn.maxPriorityFeePerGas ? parseInt(txn.maxPriorityFeePerGas) : 0,
           txnHash: txn.hash,
           input: txn.input,
-          nonce: txn.nonce,
+          nonce: txn.nonce ? parseInt(txn.nonce) : 0,
           toAddr: txn.to,
           value: txn.value,
-          type: txn.type,
-          chainId: chainId,
+          type: txn.type ? parseInt(txn.type) : 0,
+          chainId: chainId ? parseInt(chainId) : 0,
           receiptContractAddress: txn.receipt.contractAddress,
-          receiptCumulativeGasUsed: txn.receipt.cumulativeGasUsed,
-          receiptEffectiveGasPrice: txn.receipt.effectiveGasPrice,
-          receiptGasUsed: txn.receipt.gasUsed,
+          receiptCumulativeGasUsed: txn.receipt.cumulativeGasUsed ? parseInt(txn.receipt.cumulativeGasUsed) : 0,
+          receiptEffectiveGasPrice: txn.receipt.effectiveGasPrice ? parseInt(txn.receipt.effectiveGasPrice) : 0,
+          receiptGasUsed: txn.receipt.gasUsed ? parseInt(txn.receipt.gasUsed) : 0,
           receiptLogsBloom: txn.receipt.logsBloom,
-          methodId: txn.input.length >= 10 ? txn.input.slice(0, 10) : null
+          methodId: txn.input.length >= 10 ? txn.input.slice(0, 10) : null,
+          timestamp: timestamp ? parseInt(timestamp) : 0
         });
   
         // save logs
@@ -138,7 +139,7 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
  */
 const _consumeBlock = async (chainId, blockNumber, isOldBlocks) => {
   try {
-    const txns = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
+    const { txns, timestamp } = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
     if(!txns.length) {
 
       console.log("null block", chainId, blockNumber);
@@ -146,7 +147,7 @@ const _consumeBlock = async (chainId, blockNumber, isOldBlocks) => {
     }
     const receipts = await getBlockReceipts(chainId, blockNumber);
     
-    await saveTxnsWithReceipt(chainId, receipts, txns);
+    await saveTxnsWithReceipt(chainId, receipts, txns, timestamp);
   } catch (e) {
     console.error(`could not consume block ${chainId}::${blockNumber}`, e);
 
@@ -173,7 +174,7 @@ const _consumeBlock = async (chainId, blockNumber, isOldBlocks) => {
  */
 const _consumeBlockGeth = async (chainId, blockNumber, isOldBlocks) => {
   try {
-    const txns = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
+    const { txns, timestamp } = await getBlockTransactionsWithoutChecksum(chainId, parseInt(blockNumber)); // Grouped
     if(!txns.length) {
 
       console.log("null block", chainId, blockNumber);
@@ -186,7 +187,7 @@ const _consumeBlockGeth = async (chainId, blockNumber, isOldBlocks) => {
       receipts.push(receipt);
     }));
 
-    await saveTxnsWithReceipt(chainId, receipts, txns);
+    await saveTxnsWithReceipt(chainId, receipts, txns, timestamp);
   } catch (e) {
     console.error(`could not consume block ${chainId}::${blockNumber}`, e);
 

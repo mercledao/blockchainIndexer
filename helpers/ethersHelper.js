@@ -70,7 +70,10 @@ const getBlockTransactionsWithoutChecksum = async (chainId, blockNumber) => {
     })
   ).json();
 
-  return data?.result?.transactions || [];
+  return {
+    txns: data?.result?.transactions || [],
+    timestamp: data?.result?.timestamp
+  };
 };
 
 const getBlockNumber = async (chainId) => {
@@ -183,6 +186,27 @@ const getTxnReceipt = async (chainId, txnHash) => {
   }
 }
 
+const getTxnByHash = async (chainId, txnHash) => {
+  try {
+    const data = await (
+      await fetch(rpc[chainId].json()[0], {
+        method: "POST",
+        "content-Type": "application/json",
+        body: JSON.stringify({
+          method: "eth_getTransactionByHash",
+          params: [`${txnHash}`],
+          id: 1,
+          jsonrpc: "2.0"
+        }),
+      })
+    ).json();
+  
+    return data?.result || undefined;
+  } catch (e) {
+    console.error("could not get txn: ", e);
+  }
+}
+
 module.exports = {
   init,
   getProvider,
@@ -195,5 +219,6 @@ module.exports = {
   getSymbol,
   getBlockTransactionsWithoutChecksum,
   getBlockNumber,
-  getTxnReceipt
+  getTxnReceipt,
+  getTxnByHash
 };

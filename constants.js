@@ -748,6 +748,7 @@ const psql = {
         receiptGasUsed: {field: "receipt_gas_used", as: "receiptGasUsed"},
         receiptLogsBloom: {field: "receipt_logs_bloom", as: "receiptLogsBloom"},
         methodId: {field: "method_id", as: "methodId"},
+        timestamp: {field: "timestamp", as: "timestamp"},
       }, 
     },
     logs: {
@@ -758,6 +759,12 @@ const psql = {
         topics: {field: "topics", as: "topics"},
         data: {field: "data", as: "data"},
         logIndex: {field: "log_index", as: "logIndex"},
+      }
+    },
+    indexer_constants: {
+      name: "indexer_constants",
+      columns: {
+        constants: {field: "constants", as: "constants"},
       }
     }
   },
