@@ -766,6 +766,22 @@ const psql = {
       columns: {
         constants: {field: "constants", as: "constants"},
       }
+    },
+    tasks: {
+      name: "tasks",
+      columns: {
+        indexerId: {field: "indexer_id", as: "indexerId"},
+        taskId: {field: "task_id", as: "taskId"},
+        contractAddr: {field: "contract_addr", as: "contractAddr"},
+        abiName: {field: "abi_name", as: "abiName"},
+        type: {field: "type", as: "type"},
+        chainId: {field: "chain_id", as: "chainId"},
+        abi: {field: "abi", as: "abi"},
+        track: {field: "track", as: "track"},
+        integrators: {field: "integrators", as: "integrators"},
+        filterParams: {field: "filterparams", as: "filterParams"},
+        webhook: {field: "webhook", as: "webhook", type: "jsonb"},
+      }
     }
   },
 };

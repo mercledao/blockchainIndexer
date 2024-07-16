@@ -1,6 +1,7 @@
 const { Client } = require("pg");
 const { psql, rpc } = require("../constants");
 const constants = require("../constants");
+const { config } = require("./data/tasks.json");
 
 const client = new Client();
 
@@ -69,6 +70,33 @@ const _initIndexerConstants = async () => {
   } catch (err) {
     console.log(
       `Error while initializing indexer constants table.`,
+      err.message
+    );
+  }
+};
+
+const _initTasks = async () => {
+  try {
+    const tableDetails = psql.tables.tasks;
+    await client.query(`DROP TABLE IF EXISTS ${tableDetails.name};`);
+    await client.query(
+      `CREATE TABLE IF NOT EXISTS ${tableDetails.name} (
+        ${tableDetails.columns.indexerId.field} SERIAL PRIMARY KEY,
+        ${tableDetails.columns.taskId.field} TEXT,
+        ${tableDetails.columns.contractAddr.field} TEXT,
+        ${tableDetails.columns.abiName.field} TEXT,
+        ${tableDetails.columns.type.field} TEXT,
+        ${tableDetails.columns.chainId.field} BIGINT,
+        ${tableDetails.columns.abi.field} TEXT,
+        ${tableDetails.columns.track.field} TEXT [],
+        ${tableDetails.columns.integrators.field} TEXT [],
+        ${tableDetails.columns.filterParams.field} TEXT [],
+        ${tableDetails.columns.webhook.field} JSONB
+      )`
+    );
+  } catch (err) {
+    console.log(
+      `Error while initializing tasks table.`,
       err.message
     );
   }
@@ -304,14 +332,86 @@ const saveLogsToDb = async (dataRows, chainId) => {
   }
 };
 
+const saveTasksHelper = async () => {
+  try {
+    const tasks = config;
+    const dataRows = [];
+
+    tasks.forEach((task) => {
+      dataRows.push({
+        taskId: task.taskId || null,
+        contractAddr: task.contractAddress || null,
+        abiName: task.abiName || null,
+        type: task.type || null,
+        chainId: task.chainId? parseInt(task.chainId) : null,
+        abi: task.abi || null,
+        track: task.track || [],
+        integrators: task.integrators || [],
+        filterParams: task.filterParams || [],
+        webhook: task.webhook ? JSON.stringify(task.webhook) : "{}",
+      });
+    });
+
+    await saveTasksToDb(dataRows);
+  } catch (error) {
+    console.error(`Error inserting Tasks.`, error);
+  }
+};
+
+const saveTasksToDb = async (dataRows) => {
+  try {
+    if (!dataRows.length) return;
+    const tableDetails = psql.tables.tasks;
+    const keyTypeMap = {};
+    const keys = Object.keys(dataRows[0]);
+    const fields = [];
+    const placeholderValues = [];
+    const values = [];
+
+    // create fields to update
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      keyTypeMap[key] = tableDetails.columns[key].type;
+      fields.push(tableDetails.columns[key].field);
+    }
+
+    // create placeholder index and values to update
+    let placeholderCount = 0;
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      const placeholderRow = [];
+
+      for (let j = 0; j < keys.length; j++) {
+        const key = keys[j];
+        const postfix = keyTypeMap[key] == "jsonb" ? "::jsonb" : "";
+
+        placeholderRow.push(`$${placeholderCount + 1}${postfix}`);
+        values.push(row[key]);
+        placeholderCount++;
+      }
+      placeholderValues.push(`(${placeholderRow.join(",")})`);
+    }
+
+    const _placeholderValues = placeholderValues.join(",");
+    const tableName = `tasks`;
+
+    await client.query(
+      `INSERT INTO ${tableName}(${fields.join(",")}) VALUES ${_placeholderValues};`,
+      values
+    );
+
+    console.log(`Tasks inserted successfully.`);
+  } catch (error) {
+    console.error(`Error inserting Tasks.`, error);
+  }
+};
+
 const init = async () => {
   await client.connect();
   await _initTxn();
   await _initLogs();
   await _initTokenBackTable();
   await _initBalanceHistory();
-  await _initIndexerConstants();
-  await saveIndexerConstants();
 };
 
 const insert = async ({ tableDetails, row, onConflictKeys = [] }) => {

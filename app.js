@@ -1,6 +1,5 @@
 require("dotenv").config();
 const init = async () => {
-  await require("./helpers/mongoHelper").init();
   await require("./helpers/psqlHelper").init();
   await require("./helpers/cacheHelper").init();
 
