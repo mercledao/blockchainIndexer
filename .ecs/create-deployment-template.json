@@ -1,0 +1,12 @@
+{
+    "applicationName": "<CODEDEPLOY_APP_NAME>",
+    "deploymentGroupName": "<CODEDEPLOY_GROUP_NAME>",
+    "revision": {
+        "revisionType": "S3",
+        "s3Location": {
+            "bucket": "<CD_BUCKET_NAME>",
+            "key": "<CD_BUCKET_PATH>/appspec.yaml",
+            "bundleType": "YAML"
+        }
+    }
+}
