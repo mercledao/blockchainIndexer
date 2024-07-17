@@ -31,7 +31,7 @@ jobs:
               [REPLICA_COUNT]=1
               [CODEDEPLOY_APP_NAME]=IndexerStaging
               [CODEDEPLOY_GROUP_NAME]=IndexerStagingCDGroup
-              [CD_BUCKET_NAME]=indexerstagingecscodedeploy
+              [CD_BUCKET_NAME]=mercleecscodedeploy
               [CD_BUCKET_PATH]=indexer/staging
               [CD_TG_1]=tgNewIndexerStagingEcs
               [CD_TG_2]=tgNewIndexerStagingEcs2
