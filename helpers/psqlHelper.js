@@ -168,6 +168,7 @@ const _initLogs = async () => {
 };
 
 const saveTxnsToDb = async (dataRows, chainId) => {
+    console.log(chainId, 'saveTxnsToDb', dataRows.length);
     try {
         if (!dataRows.length) return;
         const tableDetails = psql.tables.txn(chainId);
@@ -216,6 +217,7 @@ const saveTxnsToDb = async (dataRows, chainId) => {
 };
 
 const saveLogsToDb = async (dataRows, chainId) => {
+    console.log(chainId, 'saveLogsToDb', dataRows.length);
     try {
         if (!dataRows.length) return;
         const tableDetails = psql.tables.logs(chainId);

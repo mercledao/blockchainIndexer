@@ -1,14 +1,20 @@
-const { ZeroAddress, rpc } = require('../../constants');
+const { ZeroAddress, rpc, dateMillis } = require('../../constants');
 const { getBlockReceipts, getBlockTransactions, getTxnReceipt } = require('../ethersHelper');
 const { popBlock, addBlocksQueue } = require('../cacheHelper');
 const { saveTxnsToDb, saveLogsToDb } = require('../psqlHelper');
 
 const blockConsumerJobs = {};
+const saveToDbJobs = {};
 const isConsuming = {};
 const delayed = {}; // delay blocknumber
 
+// todo: move this to redis?
+const toSaveTxns = {};
+const toSaveLogs = {};
+
 const init = async () => {
     await consumeBlockJob();
+    await saveToDbJob();
 };
 
 const consumeBlockJob = async () => {
@@ -128,8 +134,9 @@ const _saveTxnsWithReceipt = async (chainId, receipts, txns, timestamp) => {
         if (!receipts?.length) return;
 
         const mp = {}; // Mapping txHash to Receipt
-        const saveTxns = [];
-        const saveLogs = [];
+
+        if (!toSaveTxns[chainId]) toSaveTxns[chainId] = [];
+        if (!toSaveLogs[chainId]) toSaveLogs[chainId] = [];
 
         // Start mapping
         receipts.forEach((receipt) => (mp[receipt?.transactionHash] = receipt));
@@ -141,7 +148,7 @@ const _saveTxnsWithReceipt = async (chainId, receipts, txns, timestamp) => {
             if (txn.receipt?.status != '0x1') return;
 
             // Only save when receipt status === "0x1"
-            saveTxns.push({
+            toSaveTxns[chainId].push({
                 blockNumber: txn.blockNumber ? parseInt(txn.blockNumber) : 0,
                 fromAddr: txn.from?.toLowerCase() || ZeroAddress,
                 /**
@@ -176,7 +183,7 @@ const _saveTxnsWithReceipt = async (chainId, receipts, txns, timestamp) => {
 
             // save logs
             txn.receipt?.logs?.forEach((log) => {
-                saveLogs.push({
+                toSaveLogs[chainId].push({
                     txnHash: txn.hash,
                     fromAddr: txn.from,
                     contractAddr: log?.address,
@@ -187,12 +194,56 @@ const _saveTxnsWithReceipt = async (chainId, receipts, txns, timestamp) => {
             });
         });
 
-        await Promise.allSettled([
-            saveTxnsToDb(saveTxns, chainId),
-            saveLogsToDb(saveLogs, chainId),
-        ]);
+        // immediately save to db if the data becomes to large
+        if (toSaveTxns[chainId].length > 400 || toSaveLogs[chainId].length > 800)
+            _saveToDb(chainId);
     } catch (err) {
         console.error('Error while saving txns with receipt.', chainId, timestamp, err.message);
+    }
+};
+
+const saveToDbJob = async () => {
+    const supportedChains = Object.keys(rpc);
+
+    // consume blocks
+    for (let i = 0; i < supportedChains.length; i++) {
+        const chainId = supportedChains[i];
+        saveToDbJobs[chainId] = setInterval(
+            () => _saveToDb(chainId),
+            dateMillis.sec_1 * 5 + Math.floor(Math.random() * 5), // slight offset to prevent all chain writes at once
+        );
+    }
+};
+
+/**
+ * since nodejs is single threaded, we first get list from cache and then set the cache empty immediately.
+ * this creates a copy of the cache while the consumer can still add to the new list
+ */
+const _saveToDb = async (chainId) => {
+    if (toSaveTxns[chainId]?.length > 0) {
+        const txns = toSaveTxns[chainId];
+        toSaveTxns[chainId] = [];
+        saveTxnsToDb(txns, chainId).catch((e) =>
+            console.error(
+                'Error while saving txns',
+                chainId,
+                'l:',
+                txns?.length,
+                'sb:',
+                txns?.[0]?.blockNumber,
+                'eb:',
+                txns?.[txns?.length - 1]?.blockNumber,
+                e,
+            ),
+        );
+    }
+
+    if (toSaveLogs[chainId]?.length > 0) {
+        const logs = toSaveLogs[chainId];
+        toSaveLogs[chainId] = [];
+        saveLogsToDb(logs, chainId).catch((e) =>
+            console.error('Error while saving logs', chainId, 'l:', logs?.length, e),
+        );
     }
 };
 
