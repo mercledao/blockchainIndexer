@@ -17,7 +17,6 @@ const consumeBlockJob = async () => {
     // consume blocks
     for (let i = 0; i < supportedChains.length; i++) {
         const chainId = supportedChains[i];
-        console.log(`blockConsumerJobs[${chainId}]`);
         blockConsumerJobs[chainId] = setInterval(
             () => _consumeAllPendingBlocksForChain(chainId),
             parseInt(rpc[chainId].consumeRate),
@@ -27,13 +26,10 @@ const consumeBlockJob = async () => {
 
 // todo: check if locked consumer is consuming. if not unlock it
 const _consumeAllPendingBlocksForChain = async (chainId) => {
-    console.log(`try _consumeAllPendingBlocksForChain[${chainId}]`);
     if (isConsuming[chainId]) return;
-    console.log(`_consumeAllPendingBlocksForChain[${chainId}]`);
 
     try {
         let blockNumber = await popBlock(chainId);
-        console.log('_consumeAllPendingBlocksForChain::blockNumber', blockNumber);
         if (!blockNumber) return;
 
         isConsuming[chainId] = true;
@@ -48,7 +44,7 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
             blockNumber = await popBlock(chainId);
         }
     } catch (e) {
-        console.error('_consumeAllPendingBlocksForChain', e);
+        console.error('_consumeAllPendingBlocksForChain', chainId, e);
     } finally {
         isConsuming[chainId] = false;
     }
@@ -136,7 +132,7 @@ const _saveTxnsWithReceipt = async (chainId, receipts, txns, timestamp) => {
         const saveLogs = [];
 
         // Start mapping
-        receipts.forEach((receipt) => (mp[receipt.transactionHash] = receipt));
+        receipts.forEach((receipt) => (mp[receipt?.transactionHash] = receipt));
         txns.forEach((tx) => (tx.receipt = mp[tx.hash]));
 
         // Save to db
@@ -196,7 +192,7 @@ const _saveTxnsWithReceipt = async (chainId, receipts, txns, timestamp) => {
             saveLogsToDb(saveLogs, chainId),
         ]);
     } catch (err) {
-        console.log('Error while saving txns with receipt.', err.message);
+        console.error('Error while saving txns with receipt.', chainId, timestamp, err.message);
     }
 };
 

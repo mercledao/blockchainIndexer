@@ -14,7 +14,7 @@ const _initIndexerConstants = async () => {
       )`,
         );
     } catch (err) {
-        console.log(`Error while initializing indexer constants table.`, err.message);
+        console.error(`Error while initializing indexer constants table.`, err.message);
     }
 };
 
@@ -38,7 +38,7 @@ const _initTasks = async () => {
       )`,
         );
     } catch (err) {
-        console.log(`Error while initializing tasks table.`, err.message);
+        console.error(`Error while initializing tasks table.`, err.message);
     }
 };
 
@@ -98,7 +98,10 @@ const _initChainwiseTables = async (chainId) => {
             )
             .catch(console.error);
     } catch (err) {
-        console.log(`Error while initializing txn table chainId: ${chainId} in psql.`, err.message);
+        console.error(
+            `Error while initializing txn table chainId: ${chainId} in psql.`,
+            err.message,
+        );
     }
 };
 
@@ -108,7 +111,7 @@ const _initTxn = async () => {
             Object.keys(rpc).map((chainId) => _initChainwiseTables(parseInt(chainId))),
         );
     } catch (err) {
-        console.log('Error while initializing txn table in psql.', err.message);
+        console.error('Error while initializing txn table in psql.', err.message);
     }
 };
 
@@ -152,7 +155,7 @@ const _initChainwiseLogs = async (chainId) => {
             )
             .catch(console.error);
     } catch (err) {
-        console.log(`Error while initializing logs table chainId: ${chainId}.`, err.message);
+        console.error(`Error while initializing logs table chainId: ${chainId}.`, err.message);
     }
 };
 
@@ -160,7 +163,7 @@ const _initLogs = async () => {
     try {
         await Promise.all(Object.keys(rpc).map((chainId) => _initChainwiseLogs(parseInt(chainId))));
     } catch (err) {
-        console.log('Error while initializing logs table in psql.', err.message);
+        console.error('Error while initializing logs table in psql.', err.message);
     }
 };
 
@@ -207,8 +210,6 @@ const saveTxnsToDb = async (dataRows, chainId) => {
             )}) VALUES ${_placeholderValues} ON CONFLICT (txn_hash) DO NOTHING;`,
             values,
         );
-
-        console.log(`Data inserted successfully on chainId: ${chainId}`);
     } catch (error) {
         console.error(`Error inserting txns on chainId: ${chainId}:`, error);
     }
@@ -256,8 +257,6 @@ const saveLogsToDb = async (dataRows, chainId) => {
             `INSERT INTO ${tableName}(${fields.join(',')}) VALUES ${_placeholderValues};`,
             values,
         );
-
-        console.log(`Logs inserted successfully on chainId: ${chainId}`);
     } catch (error) {
         console.error(`Error inserting logs on chainId: ${chainId}:`, error);
     }
@@ -386,7 +385,7 @@ const _getLastTrackedBlocksDb = async () => {
 
         return blocks;
     } catch (err) {
-        console.log('error getting last tracked blocks from db.', err.message);
+        console.error('error getting last tracked blocks from db.', err.message);
     }
 };
 
@@ -398,7 +397,7 @@ const getTxnsCountFromDb = async (chainId, blockNumber) => {
 
         return parseInt(data?.rows[0]?.count || 0);
     } catch (err) {
-        console.log(err.message);
+        console.error(err.message);
     }
 };
 
@@ -411,7 +410,7 @@ const getAllBlockNumbers = async (chainId) => {
         const blockNumbers = data?.rows.map((obj) => parseInt(obj.block_number)) || [];
         return blockNumbers;
     } catch (err) {
-        console.log(err.message);
+        console.error(err.message);
     }
 };
 
@@ -428,7 +427,7 @@ const saveIndexerConstants = async () => {
             [data],
         );
     } catch (err) {
-        console.log(`Error saving indexer constants to db.`, err.message);
+        console.error(`Error saving indexer constants to db.`, err.message);
     }
 };
 
