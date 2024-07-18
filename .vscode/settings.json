@@ -1,0 +1,33 @@
+{
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.wordWrap": "on",
+    "prettier.printWidth": 100,
+    "prettier.tabWidth": 4,
+    "prettier.useTabs": false,
+    "prettier.singleQuote": true,
+    "prettier.trailingComma": "all",
+    "prettier.bracketSpacing": true,
+    "prettier.jsxBracketSameLine": false,
+    "prettier.semi": true,
+    "prettier.arrowParens": "always",
+    "prettier.endOfLine": "lf",
+    "prettier.proseWrap": "always",
+    "prettier.plugins": ["@trivago/prettier-plugin-sort-imports"],
+    "prettier.importOrder": [
+        "^\\u0000",
+        "^@?\\w",
+        "^",
+        "^\\.\\.(?!/?$)",
+        "^\\./(?=.*/)(?!/?$)",
+        "^\\.(?!/?$)",
+        "^\\./?$"
+    ],
+    "prettier.importOrderSeparation": true,
+    "prettier.importOrderSortSpecifiers": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+    }
+}
+
