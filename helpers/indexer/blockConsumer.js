@@ -90,6 +90,7 @@ const saveTxnsWithReceipt = async (chainId, receipts, txns, timestamp) => {
         txn.receipt.logs.forEach((log) => {
           saveLogs.push({
             txnHash: txn.hash,
+            fromAddr: txn.from,
             contractAddr: log.address,
             topics: log.topics,
             data: log.data,

@@ -186,6 +186,7 @@ const _initChainwiseLogs = async (tableName, chainId) => {
     await client.query(
       `CREATE TABLE IF NOT EXISTS ${tableName} (
         ${tableDetails.columns.txnHash.field} CHARACTER(66) NOT NULL,
+        ${tableDetails.columns.fromAddr.field} CHARACTER(42),
         ${tableDetails.columns.contractAddr.field} CHARACTER(42),
         ${tableDetails.columns.topics.field} TEXT[],
         ${tableDetails.columns.data.field} TEXT,
@@ -193,10 +194,16 @@ const _initChainwiseLogs = async (tableName, chainId) => {
       )`
     );
 
-    // Indexing contractAddr & topics[0]
+    // Indexing txnHash, fromAddr, contractAddr & topics[0]
     client
       .query(
         `CREATE INDEX IF NOT EXISTS idxLogsTxnHash_${chainId} ON ${tableName} ("${tableDetails.columns.txnHash.field}");`
+      )
+      .catch(console.error);
+
+    client
+      .query(
+        `CREATE INDEX IF NOT EXISTS idxFromAddr_${chainId} ON ${tableName} ("${tableDetails.columns.fromAddr.field}") WHERE ${tableDetails.columns.fromAddr.field} IS NOT NULL;`
       )
       .catch(console.error);
 
