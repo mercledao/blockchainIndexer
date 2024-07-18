@@ -17,6 +17,7 @@ const consumeBlockJob = async () => {
     // consume blocks
     for (let i = 0; i < supportedChains.length; i++) {
         const chainId = supportedChains[i];
+        console.log(`blockConsumerJobs[${chainId}]`);
         blockConsumerJobs[chainId] = setInterval(
             () => _consumeAllPendingBlocksForChain(chainId),
             parseInt(rpc[chainId].consumeRate),
@@ -26,10 +27,13 @@ const consumeBlockJob = async () => {
 
 // todo: check if locked consumer is consuming. if not unlock it
 const _consumeAllPendingBlocksForChain = async (chainId) => {
+    console.log(`try _consumeAllPendingBlocksForChain[${chainId}]`);
     if (isConsuming[chainId]) return;
+    console.log(`_consumeAllPendingBlocksForChain[${chainId}]`);
 
     try {
         let blockNumber = await popBlock(chainId);
+        console.log('_consumeAllPendingBlocksForChain::blockNumber', blockNumber);
         if (!blockNumber) return;
 
         isConsuming[chainId] = true;
@@ -144,7 +148,11 @@ const _saveTxnsWithReceipt = async (chainId, receipts, txns, timestamp) => {
             saveTxns.push({
                 blockNumber: txn.blockNumber ? parseInt(txn.blockNumber) : 0,
                 fromAddr: txn.from?.toLowerCase() || ZeroAddress,
-                gas: txn.gas ? parseInt(txn.gas) : 0,
+                /**
+                 * hack: if gas is too high just store as 1e18.
+                 * can save this type as numeric but it occupies extra space and not sure if this is really important
+                 */
+                gas: txn.gas ? Math.min(parseInt(txn.gas), 1000000000000000000) : 0,
                 gasPrice: txn.gasPrice ? parseInt(txn.gasPrice) : 0,
                 maxFeePerGas: txn.maxFeePerGas ? parseInt(txn.maxFeePerGas) : 0,
                 maxPriorityFeePerGas: txn.maxPriorityFeePerGas

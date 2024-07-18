@@ -46,12 +46,6 @@ const rpc = {
         pollRate: 4000,
         consumeRate: 3000,
     },
-    169: {
-        json: () => [`https://pacific-rpc.manta.network/http`],
-        pollRate: 10000,
-        consumeRate: 7000,
-        geth: true,
-    },
     250: {
         json: () => [
             `https://fittest-black-emerald.fantom.quiknode.pro/fa918ecbb603be9341088c185e715d7318bfd36a`,
@@ -184,6 +178,7 @@ const psql = {
             name: `logs_${parseInt(chainId)}`,
             columns: {
                 txnHash: { field: 'txn_hash', as: 'txnHash' },
+                fromAddr: { field: 'from_addr', as: 'fromAddr' },
                 contractAddr: { field: 'contract_addr', as: 'contractAddr' },
                 topics: { field: 'topics', as: 'topics' },
                 data: { field: 'data', as: 'data' },
@@ -214,63 +209,72 @@ const psql = {
         },
     },
     txn: {
-      name: "txn",
-      columns: {
-        blockNumber: {field: "block_number", as: "blockNumber"},
-        fromAddr: {field: "from_addr", as: "fromAddr"},
-        gas: {field: "gas", as: "gas"},
-        gasPrice: {field: "gas_price", as: "gasPrice"},
-        maxFeePerGas: {field: "max_fee_per_gas", as: "maxFeePerGas"},
-        maxPriorityFeePerGas: {field: "max_priority_fee_per_gas", as: "maxPriorityFeePerGas"},
-        txnHash: { field: "txn_hash", as: "txnHash" },
-        input: {field: "input", as: "input"},
-        nonce: {field: "nonce", as: "nonce"},
-        toAddr: {field: "to_addr", as: "toAddr"},
-        value: {field: "value", as: "value"},
-        type: {field: "type", as: "type"},
-        chainId: {field: "chain_id", as: "chainId"},
-        receiptContractAddress: {field: "receipt_contract_address", as: "receiptContractAddress"},
-        receiptCumulativeGasUsed: {field: "receipt_cumulative_gas_used", as: "receiptCumulativeGasUsed"},
-        receiptEffectiveGasPrice: {field: "receipt_effective_gas_price", as: "receiptEffectiveGasPrice"},
-        receiptGasUsed: {field: "receipt_gas_used", as: "receiptGasUsed"},
-        receiptLogsBloom: {field: "receipt_logs_bloom", as: "receiptLogsBloom"},
-        methodId: {field: "method_id", as: "methodId"},
-        timestamp: {field: "timestamp", as: "timestamp"},
-      }, 
+        name: 'txn',
+        columns: {
+            blockNumber: { field: 'block_number', as: 'blockNumber' },
+            fromAddr: { field: 'from_addr', as: 'fromAddr' },
+            gas: { field: 'gas', as: 'gas' },
+            gasPrice: { field: 'gas_price', as: 'gasPrice' },
+            maxFeePerGas: { field: 'max_fee_per_gas', as: 'maxFeePerGas' },
+            maxPriorityFeePerGas: { field: 'max_priority_fee_per_gas', as: 'maxPriorityFeePerGas' },
+            txnHash: { field: 'txn_hash', as: 'txnHash' },
+            input: { field: 'input', as: 'input' },
+            nonce: { field: 'nonce', as: 'nonce' },
+            toAddr: { field: 'to_addr', as: 'toAddr' },
+            value: { field: 'value', as: 'value' },
+            type: { field: 'type', as: 'type' },
+            chainId: { field: 'chain_id', as: 'chainId' },
+            receiptContractAddress: {
+                field: 'receipt_contract_address',
+                as: 'receiptContractAddress',
+            },
+            receiptCumulativeGasUsed: {
+                field: 'receipt_cumulative_gas_used',
+                as: 'receiptCumulativeGasUsed',
+            },
+            receiptEffectiveGasPrice: {
+                field: 'receipt_effective_gas_price',
+                as: 'receiptEffectiveGasPrice',
+            },
+            receiptGasUsed: { field: 'receipt_gas_used', as: 'receiptGasUsed' },
+            receiptLogsBloom: { field: 'receipt_logs_bloom', as: 'receiptLogsBloom' },
+            methodId: { field: 'method_id', as: 'methodId' },
+            timestamp: { field: 'timestamp', as: 'timestamp' },
+        },
     },
     logs: {
-      name: "logs",
-      columns: {
-        txnHash: { field: "txn_hash", as: "txnHash" },
-        fromAddr: { field: "from_addr", as: "fromAddr" },
-        contractAddr: {field: "contract_addr", as: "contractAddr"},
-        topics: {field: "topics", as: "topics"},
-        data: {field: "data", as: "data"},
-        logIndex: {field: "log_index", as: "logIndex"},
-      }
+        name: 'logs',
+        columns: {
+            txnHash: { field: 'txn_hash', as: 'txnHash' },
+            fromAddr: { field: 'from_addr', as: 'fromAddr' },
+            contractAddr: { field: 'contract_addr', as: 'contractAddr' },
+            topics: { field: 'topics', as: 'topics' },
+            data: { field: 'data', as: 'data' },
+            logIndex: { field: 'log_index', as: 'logIndex' },
+        },
     },
     indexer_constants: {
-      name: "indexer_constants",
-      columns: {
-        constants: {field: "constants", as: "constants"},
-      }
+        name: 'indexer_constants',
+        columns: {
+            constants: { field: 'constants', as: 'constants' },
+        },
     },
     tasks: {
-      name: "tasks",
-      columns: {
-        indexerId: {field: "indexer_id", as: "indexerId"},
-        taskId: {field: "task_id", as: "taskId"},
-        contractAddr: {field: "contract_addr", as: "contractAddr"},
-        abiName: {field: "abi_name", as: "abiName"},
-        type: {field: "type", as: "type"},
-        chainId: {field: "chain_id", as: "chainId"},
-        abi: {field: "abi", as: "abi"},
-        track: {field: "track", as: "track"},
-        integrators: {field: "integrators", as: "integrators"},
-        filterParams: {field: "filterparams", as: "filterParams"},
-        webhook: {field: "webhook", as: "webhook", type: "jsonb"},
-      }
-    }
+        name: 'tasks',
+        columns: {
+            indexerId: { field: 'indexer_id', as: 'indexerId' },
+            taskId: { field: 'task_id', as: 'taskId' },
+            contractAddr: { field: 'contract_addr', as: 'contractAddr' },
+            abiName: { field: 'abi_name', as: 'abiName' },
+            type: { field: 'type', as: 'type' },
+            chainId: { field: 'chain_id', as: 'chainId' },
+            abi: { field: 'abi', as: 'abi' },
+            track: { field: 'track', as: 'track' },
+            integrators: { field: 'integrators', as: 'integrators' },
+            filterParams: { field: 'filterparams', as: 'filterParams' },
+            webhook: { field: 'webhook', as: 'webhook', type: 'jsonb' },
+        },
+    },
 };
 
 module.exports = {

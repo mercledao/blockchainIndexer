@@ -16,12 +16,15 @@ const init = async () => {
 const produceBlock = async () => {
     // const dbTrackedBlocks = await _getLastTrackedBlocksDb();
     const dbTrackedBlocks = await _getLastTrackedBlocksDb();
+    console.log('dbTrackedBlocks');
     const supportedChains = Object.keys(rpc);
 
     // track missed blocks
     for (let i = 0; i < supportedChains.length; i++) {
         const chainId = supportedChains[i];
         await clearBlocksQueue(chainId);
+        console.log(`clearBlocksQueue(${chainId})`);
+
         lastTrackedBlocks[chainId] = dbTrackedBlocks[chainId];
     }
 
@@ -37,8 +40,11 @@ const produceBlock = async () => {
 
 // todo: need to check if locked producer is still producing blocks or not. if not unlock it
 const _produceBlockForChain = async (chainId) => {
+    console.log(`try _produceBlockForChain(${chainId})`);
+
     if (lockProducer[chainId]) return;
     lockProducer[chainId] = true;
+    console.log(`_produceBlockForChain(${chainId})`);
 
     let nextTrackBlock = lastTrackedBlocks[chainId]
         ? parseInt(lastTrackedBlocks[chainId]) + 1
@@ -46,6 +52,7 @@ const _produceBlockForChain = async (chainId) => {
 
     try {
         const blockNumber = (await getProvider(chainId).getBlockNumber()) - 1; // lag by 1 blocks
+        console.log('_produceBlockForChain::blockNumber', blockNumber);
         if (!blockNumber) return;
         if (nextTrackBlock >= blockNumber) return;
         if (!nextTrackBlock) nextTrackBlock = blockNumber;
@@ -60,10 +67,12 @@ const _produceBlockForChain = async (chainId) => {
             blocks.push(`${i}`);
         }
         blocks.push(`${blockNumber}`);
+        console.log('_produceBlockForChain::blocks.length', blocks.length);
 
         if (blocks.length) {
             lastTrackedBlocks[chainId] = blockNumber;
             await addBlocksQueue(chainId, blocks);
+            console.log('_produceBlockForChain::addBlocksQueue', blocks);
         }
     } catch (e) {
         console.error(`could not produce block since::${chainId}::${nextTrackBlock}`, e);
