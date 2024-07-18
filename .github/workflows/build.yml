@@ -1,0 +1,277 @@
+name: CI/CD Pipeline to AWS ECS
+
+# Pipeline to deploy to ECS
+# - need to manually create Load Balancer and 2 Target groups
+# - need to upload env key json to s3. structure is [{"name": "key", "value": "SECRET"}]
+#
+# Pipeline will create ERC repo and ECS cluster. It will also create Cloudwatch log group
+# It will then build image push to ECR, create service with task definition
+# It will then create codedeploy configs as necessary
+# It will deploy code
+
+on:
+  push:
+    branches: [cicd_staging]
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to ECS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Variables for Deployment
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/cicd_staging" ]; then
+            declare -A vars=(
+              [ENV_LOCATION]=s3://envmerclebackend/indexer/staging.json
+              [ECR]=indexer_staging
+              [ECS_CLUSTER]=indexer_staging_cluster
+              [ECS_SERVICE_NAME]=indexer_staging_service
+              [CONTAINER_NAME]=indexer_staging_container
+              [REPLICA_COUNT]=1
+              [CODEDEPLOY_APP_NAME]=IndexerStaging
+              [CODEDEPLOY_GROUP_NAME]=IndexerStagingCDGroup
+              [CD_BUCKET_NAME]=mercleecscodedeploy
+              [CD_BUCKET_PATH]=indexer/staging
+              [CD_TG_1]=tgNewIndexerStagingEcs
+              [CD_TG_2]=tgNewIndexerStagingEcs2
+              [CD_LB_LISTENER_PROD]=arn:aws:elasticloadbalancing:us-east-1:670732250846:listener/app/lbIndexerStaging/61c961f0b2df59ad/f4155a2011abd366
+              [CD_LB_TG]=arn:aws:elasticloadbalancing:us-east-1:670732250846:targetgroup/tgNewIndexerStagingEcs/9eb299db9a9204b1
+              [LOG_GROUP]=/ecs/indexerStaging
+              [LOG_PREFIX]=indexerstaging
+              [AWS_ROLE]=arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GithubActionsTaskDefRegister
+            )
+          fi
+
+          for var in "${!vars[@]}"; do
+            echo "${var}=${vars[$var]}" >> $GITHUB_ENV
+            echo "${var}=${vars[$var]}"
+          done
+
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+        with:
+          mask-aws-account-id: true
+
+      - name: Ensure ECR Repository Exists
+        run: |
+          if aws ecr describe-repositories --repository-names $ECR 2>&1 | grep -q 'RepositoryNotFoundException'; then
+            echo "Repository $ECR does not exist. Creating..."
+            aws ecr create-repository --repository-name $ECR
+            echo "Repository $ECR created."
+          else
+            echo "Repository $ECR already exists."
+          fi
+        env:
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Build and Push Image to AWS ECR
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR }}:${{ github.sha }}
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new
+
+      - name: Ensure ECS Cluster Exists
+        run: |
+          if aws ecs describe-clusters --clusters $ECS_CLUSTER --query 'clusters[?clusterName==`'$ECS_CLUSTER'`].clusterName' --output text | grep -q $ECS_CLUSTER; then
+            echo "Cluster $ECS_CLUSTER already exists."
+          else
+            echo "Cluster $ECS_CLUSTER does not exist. Creating..."
+            aws ecs create-cluster --cluster-name $ECS_CLUSTER
+            echo "Cluster $ECS_CLUSTER created."
+          fi
+        env:
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Ensure Log Group Exists
+        run: |
+          if aws logs describe-log-groups --log-group-name-prefix $LOG_GROUP --query 'logGroups[?logGroupName==`'$LOG_GROUP'`].logGroupName' --output text | grep -q $LOG_GROUP; then
+            echo "Log group $LOG_GROUP already exists."
+          else
+            echo "Log group $LOG_GROUP does not exist. Creating..."
+            aws logs create-log-group --log-group-name $LOG_GROUP
+            echo "Log group $LOG_GROUP created."
+          fi
+        env:
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Fetch Environment Variables from S3
+        run: |
+          aws s3 cp $ENV_LOCATION env.json
+
+      - name: Prepare Task Definition
+        run: |
+          # Prepare the image URI with the same tag used in the build step
+          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$ECR:${{ github.sha }}"
+
+          sed -e "s|<IMAGE_URI>|$IMAGE_URI|g" .ecs/task-definition-template.json > tmp.json && mv tmp.json task-definition.json
+          sed -e "s|<ECR>|$ECR|g" task-definition.json > tmp.json && mv tmp.json task-definition.json
+          sed -e "s|<AWS_ROLE>|$AWS_ROLE|g" task-definition.json > tmp.json && mv tmp.json task-definition.json
+          sed -e "s|<CONTAINER_NAME>|$CONTAINER_NAME|g" task-definition.json > tmp.json && mv tmp.json task-definition.json
+          sed -e "s|<LOG_GROUP>|$LOG_GROUP|g" task-definition.json > tmp.json && mv tmp.json task-definition.json
+          sed -e "s|<LOG_PREFIX>|$LOG_PREFIX|g" task-definition.json > tmp.json && mv tmp.json task-definition.json
+
+          jq --argjson replacement "$(cat env.json)" '.containerDefinitions[0].environment = $replacement' task-definition.json > tmp.json && mv tmp.json task-definition.json
+
+      - name: Register Task Definition
+        run: |
+          TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://task-definition.json | jq -r '.taskDefinition.taskDefinitionArn')
+          echo "Registered Task Definition ARN: $TASK_DEF_ARN"
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
+
+      - name: Start/Update ECS Service
+        run: |
+          SERVICE_INFO=$(aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE_NAME)
+          SERVICE_EXISTS=$(echo $SERVICE_INFO | jq '.services | length')
+          SERVICE_ACTIVE=$(echo $SERVICE_INFO | jq '.services[] | select(.status == "ACTIVE") | length')
+
+          if [ "$SERVICE_EXISTS" -eq "0" ]; then
+            echo "Service does not exist. Creating service."
+
+            sed -e "s|<CLUSTER_NAME>|$ECS_CLUSTER|g" .ecs/service-definition-template.json > service-definition.json
+            sed -e "s|<SERVICE_NAME>|$ECS_SERVICE_NAME|g" service-definition.json > tmp.json && mv tmp.json service-definition.json
+            sed -e "s|<TASK_DEFINITION_ARN>|$TASK_DEF_ARN|g" service-definition.json > tmp.json && mv tmp.json service-definition.json
+            sed -e "s|-123000123|$REPLICA_COUNT|g" service-definition.json > tmp.json && mv tmp.json service-definition.json
+            sed -e "s|<CONTAINER_NAME>|$CONTAINER_NAME|g" service-definition.json > tmp.json && mv tmp.json service-definition.json
+            sed -e "s|<CD_LB_TG>|$CD_LB_TG|g" service-definition.json > tmp.json && mv tmp.json service-definition.json
+            
+            cat service-definition.json
+            # Create the ECS service with CodeDeploy deployment controller
+            aws ecs create-service --cli-input-json file://service-definition.json
+
+          elif [ "$SERVICE_ACTIVE" -ge "1" ]; then
+            echo "Service exists and is active."
+          else
+            echo "Service exists but is not in an ACTIVE state."
+            exit 1
+          fi
+
+      - name: Upload appspec and Task Definition to S3
+        run: |
+          sed -e "s|<TASK_DEFINITION>|$TASK_DEF_ARN|g" .ecs/appspec-template.yaml > tmp.yaml && mv tmp.yaml appspec.yaml
+          sed -e "s|<CONTAINER_NAME>|$CONTAINER_NAME|g" appspec.yaml > tmp.yaml && mv tmp.yaml appspec.yaml
+          aws s3 cp appspec.yaml s3://$CD_BUCKET_NAME/$CD_BUCKET_PATH/appspec.yaml
+          aws s3 cp task-definition.json s3://$CD_BUCKET_NAME/$CD_BUCKET_PATH/task-definition.json
+
+      - name: Ensure CodeDeploy Application Exists
+        run: |
+          if ! aws deploy get-application --application-name $CODEDEPLOY_APP_NAME; then
+            aws deploy create-application --application-name $CODEDEPLOY_APP_NAME --compute-platform ECS
+            echo "Created CodeDeploy application: $CODEDEPLOY_APP_NAME"
+          else
+            echo "CodeDeploy application $CODEDEPLOY_APP_NAME already exists"
+          fi
+
+      - name: Create CodeDeploy Deployment Group
+        run: |
+          DEPLOYMENT_GROUP_EXISTS=$(aws deploy get-deployment-group --application-name $CODEDEPLOY_APP_NAME --deployment-group-name $CODEDEPLOY_GROUP_NAME 2>&1 || true)
+          if [[ $DEPLOYMENT_GROUP_EXISTS == *"DeploymentGroupDoesNotExistException"* ]]; then
+            echo "Deployment group $CODEDEPLOY_GROUP_NAME does not exist. Creating..."
+            
+            sed -e "s|<CODEDEPLOY_APP_NAME>|$CODEDEPLOY_APP_NAME|g" .ecs/deployment-group-template.json > tmp.yaml && mv tmp.yaml deployment-group.json
+            sed -e "s|<CODEDEPLOY_GROUP_NAME>|$CODEDEPLOY_GROUP_NAME|g" deployment-group.json > tmp.yaml && mv tmp.yaml deployment-group.json
+            sed -e "s|<CD_TG_1>|$CD_TG_1|g" deployment-group.json > tmp.yaml && mv tmp.yaml deployment-group.json
+            sed -e "s|<CD_TG_2>|$CD_TG_2|g" deployment-group.json > tmp.yaml && mv tmp.yaml deployment-group.json
+            sed -e "s|<CD_LB_LISTENER_PROD>|$CD_LB_LISTENER_PROD|g" deployment-group.json > tmp.yaml && mv tmp.yaml deployment-group.json
+            sed -e "s|<AWS_ROLE>|$AWS_ROLE|g" deployment-group.json > tmp.yaml && mv tmp.yaml deployment-group.json
+            sed -e "s|<ECS_SERVICE_NAME>|$ECS_SERVICE_NAME|g" deployment-group.json > tmp.yaml && mv tmp.yaml deployment-group.json
+            sed -e "s|<ECS_CLUSTER>|$ECS_CLUSTER|g" deployment-group.json > tmp.yaml && mv tmp.yaml deployment-group.json
+            
+            aws deploy create-deployment-group --cli-input-json file://deployment-group.json
+           
+            echo "Created CodeDeploy deployment group: $CODEDEPLOY_GROUP_NAME"
+          else
+            echo "Deployment group $CODEDEPLOY_GROUP_NAME already exists."
+          fi
+
+      - name: Check Active Deployments
+        run: |
+          ACTIVE_DEPLOYMENT=$(aws deploy list-deployments --application-name "$CODEDEPLOY_APP_NAME" --deployment-group-name "$CODEDEPLOY_GROUP_NAME" --include-only-statuses "Created" "Queued" "InProgress" --query "deployments[0]" --output text)
+
+          if [ "$ACTIVE_DEPLOYMENT" != "None"]; then
+              echo "An active deployment is in progress: $ACTIVE_DEPLOYMENT"
+              aws deploy stop-deployment --deployment-id $ACTIVE_DEPLOYMENT
+              echo "Stopped active deployment: $ACTIVE_DEPLOYMENT"
+                  
+              # Wait for the deployment to fully stop
+              while : ; do
+                CURRENT_STATUS=$(aws deploy get-deployment --deployment-id $ACTIVE_DEPLOYMENT --query "deploymentInfo.status" --output text)
+                if [ "$CURRENT_STATUS" == "Stopped" ] || [ "$CURRENT_STATUS" == "Failed" ] || [ "$CURRENT_STATUS" == "Succeeded" ]; then
+                    echo "Deployment $ACTIVE_DEPLOYMENT has stopped."
+                    break
+                fi
+                echo "Waiting for deployment to stop..."
+                sleep 10
+              done
+          else
+              echo "No active deployments. Proceeding to create a new deployment."
+          fi
+
+      - name: Create CodeDeploy Deployment
+        run: |
+          sed -e "s|<CODEDEPLOY_APP_NAME>|$CODEDEPLOY_APP_NAME|g" .ecs/create-deployment-template.json > tmp.yaml && mv tmp.yaml create-deployment.json
+          sed -e "s|<CODEDEPLOY_GROUP_NAME>|$CODEDEPLOY_GROUP_NAME|g" create-deployment.json > tmp.yaml && mv tmp.yaml create-deployment.json
+          sed -e "s|<CD_BUCKET_NAME>|$CD_BUCKET_NAME|g" create-deployment.json > tmp.yaml && mv tmp.yaml create-deployment.json
+          sed -e "s|<CD_BUCKET_PATH>|$CD_BUCKET_PATH|g" create-deployment.json > tmp.yaml && mv tmp.yaml create-deployment.json
+
+          DEPLOYMENT_ID=$(aws deploy create-deployment --cli-input-json file://create-deployment.json --output json | jq -r '.deploymentId')
+
+          echo "Deployment started with ID: $DEPLOYMENT_ID"
+
+          echo "DEPLOYMENT_ID=$DEPLOYMENT_ID" >> $GITHUB_ENV
+
+      - name: Check Deployment Status
+        run: |
+          while true; do
+            STATUS=$(aws deploy get-deployment --deployment-id $DEPLOYMENT_ID --query 'deploymentInfo.status' --output text)
+
+            if [ "$STATUS" == "Succeeded" ]; then
+              echo "Deployment successful!"
+              break
+            elif [ "$STATUS" == "Failed" ]; then
+              echo "Deployment failed!"
+              exit 1
+            else
+              echo "Deployment status: $STATUS. Checking again in 30 seconds."
+              sleep 30
+            fi
+          done
+
+      - name: Clean up Cache
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache-new
+          key: ${{ runner.os }}-buildx-${{ github.sha }}

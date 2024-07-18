@@ -1,0 +1,36 @@
+{
+    "cluster": "<CLUSTER_NAME>",
+    "serviceName": "<SERVICE_NAME>",
+    "taskDefinition": "<TASK_DEFINITION_ARN>",
+    "desiredCount": -123000123,
+    "launchType": "FARGATE",
+    "schedulingStrategy": "REPLICA",
+    "deploymentController": {
+        "type": "CODE_DEPLOY"
+    },
+    "platformVersion": "LATEST",
+    "networkConfiguration": {
+        "awsvpcConfiguration": {
+            "subnets": [
+                "subnet-0ebc097397c0d23d8",
+                "subnet-070aacc7de81f38a7",
+                "subnet-0d383b2ec1b7d8fda",
+                "subnet-0e691660cc2ef8003",
+                "subnet-08eb7e9e3abbf0d70",
+                "subnet-0a8c47de1b47cd3d4"
+            ],
+            "securityGroups": [
+                "sg-0f22f8151e6d43aa3",
+                "sg-00d689dd80d89166b"
+            ],
+            "assignPublicIp": "ENABLED"
+        }
+    },
+    "loadBalancers": [
+        {
+            "targetGroupArn": "<CD_LB_TG>",
+            "containerName": "<CONTAINER_NAME>",
+            "containerPort": 3001
+        }
+    ]
+}

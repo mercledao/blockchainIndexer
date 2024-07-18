@@ -755,6 +755,7 @@ const psql = {
       name: "logs",
       columns: {
         txnHash: { field: "txn_hash", as: "txnHash" },
+        fromAddr: { field: "from_addr", as: "fromAddr" },
         contractAddr: {field: "contract_addr", as: "contractAddr"},
         topics: {field: "topics", as: "topics"},
         data: {field: "data", as: "data"},
