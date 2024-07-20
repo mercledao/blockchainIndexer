@@ -25,7 +25,7 @@ const consumeBlockJob = async () => {
         const chainId = supportedChains[i];
         blockConsumerJobs[chainId] = setInterval(
             () => _consumeAllPendingBlocksForChain(chainId),
-            parseInt(rpc[chainId].consumeRate),
+            rpc[chainId].consumeRate,
         );
     }
 };
@@ -91,7 +91,7 @@ const _consumeBlockProcess = async (chainId, blockNumber, isOldBlocks, txnFetchM
                 addBlocksQueue(chainId, [blockNumber]).catch((e) =>
                     console.error('error republishing errored consumed block', e),
                 );
-            }, parseInt(rpc[chainId].consumeRate));
+            }, rpc[chainId].consumeRate);
         } else {
             delete delayed[chainId][blockNumber];
             console.log('ignoring null block after multiple retries', chainId, blockNumber);
@@ -107,6 +107,7 @@ const _fetchTxnsAndReceiptsGeth = async (chainId, blockNumber, isOldBlocks) => {
     }
     const receipts = [];
 
+    // todo: might be a performance concern. possible rpc rate limits and memory issue
     await Promise.allSettled(
         txns.map(async (txn) => {
             const receipt = await getTxnReceipt(chainId, txn.hash);

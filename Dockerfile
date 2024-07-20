@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 3001
 
 # Define the command to run your app using CMD which defines your runtime
-CMD ["node", "./bin/www"]
+CMD ["node","--trace-gc", "./bin/www"]
