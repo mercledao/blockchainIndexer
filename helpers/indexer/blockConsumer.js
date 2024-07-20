@@ -107,13 +107,21 @@ const _fetchTxnsAndReceiptsGeth = async (chainId, blockNumber, isOldBlocks) => {
     }
     const receipts = [];
 
-    // todo: might be a performance concern. possible rpc rate limits and memory issue
-    await Promise.allSettled(
-        txns.map(async (txn) => {
-            const receipt = await getTxnReceipt(chainId, txn.hash);
-            receipts.push(receipt);
-        }),
-    );
+    let r = [];
+    for (let i = 0; i < txns?.length; i++) {
+        const txn = txns[i];
+        r.push(getTxnReceipt(chainId, txn.hash));
+
+        if (r.length > 5) {
+            const values = await Promise.allSettled(r);
+            values.forEach((v) => receipts.push(v.value));
+            r = [];
+        }
+    }
+    if (r.length) {
+        const values = await Promise.allSettled(r);
+        values.forEach((v) => receipts.push(v.value));
+    }
 
     return { txns, receipts, timestamp };
 };
