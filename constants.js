@@ -17,6 +17,7 @@ const rpc = {
         ],
         pollRate: 15000,
         consumeRate: 10000,
+        avgBlockRateDay: 5760,
     },
     10: {
         json: () => [
@@ -24,6 +25,7 @@ const rpc = {
         ],
         pollRate: 3000,
         consumeRate: 2000,
+        avgBlockRateDay: 43200,
     },
     56: {
         json: () => [
@@ -31,6 +33,7 @@ const rpc = {
         ],
         pollRate: 3000,
         consumeRate: 2000,
+        avgBlockRateDay: 28704,
     },
     100: {
         json: () => [
@@ -38,6 +41,7 @@ const rpc = {
         ],
         pollRate: 3000,
         consumeRate: 2000,
+        avgBlockRateDay: 17280,
     },
     137: {
         json: () => [
@@ -45,20 +49,23 @@ const rpc = {
         ],
         pollRate: 4000,
         consumeRate: 3000,
+        avgBlockRateDay: 38918,
     },
     250: {
         json: () => [
             `https://fittest-black-emerald.fantom.quiknode.pro/fa918ecbb603be9341088c185e715d7318bfd36a`,
         ],
-        pollRate: 4000,
-        consumeRate: 3000,
+        pollRate: 3000,
+        consumeRate: 2000,
+        avgBlockRateDay: 42146,
     },
     324: {
         json: () => [
             `https://white-fittest-sheet.zksync-mainnet.quiknode.pro/9a83f61d4b5fb681cb70a74659fe7a06a3b5efcf`,
         ],
-        pollRate: 4000,
-        consumeRate: 3000,
+        pollRate: 2000,
+        consumeRate: 1000,
+        avgBlockRateDay: 109440,
     },
     1101: {
         json: () => [
@@ -66,21 +73,15 @@ const rpc = {
         ],
         pollRate: 4000,
         consumeRate: 3000,
-    },
-    59144: {
-        json: () => [
-            `https://linea.blockpi.network/v1/rpc/14dd99345edce68a9dceca2451447510f1d96946`,
-        ],
-        pollRate: 4000,
-        consumeRate: 3000,
-        geth: true,
+        avgBlockRateDay: 28600,
     },
     8453: {
         json: () => [
             `https://light-still-tent.base-mainnet.quiknode.pro/fa1239dd03b84dfa5b44085138afb271fecab7ee`,
         ],
-        pollRate: 1000,
+        pollRate: 3000,
         consumeRate: 2000,
+        avgBlockRateDay: 43200,
     },
     42161: {
         json: () => [
@@ -88,6 +89,7 @@ const rpc = {
         ],
         pollRate: 500,
         consumeRate: 150,
+        avgBlockRateDay: 1036800,
     },
     43114: {
         json: () => [
@@ -95,13 +97,16 @@ const rpc = {
         ],
         pollRate: 2000,
         consumeRate: 750,
+        avgBlockRateDay: 182500,
     },
-    80085: {
+    59144: {
         json: () => [
-            `https://purple-dimensional-glitter.bera-artio.quiknode.pro/67b0f331af3d77ac85c3e3065cf7ae8aa7e51a3a`,
+            `https://linea.blockpi.network/v1/rpc/14dd99345edce68a9dceca2451447510f1d96946`,
         ],
-        pollRate: 2000,
-        consumeRate: 750,
+        pollRate: 3000,
+        consumeRate: 2000,
+        avgBlockRateDay: 43200,
+        geth: true,
     },
     534352: {
         json: () => [
@@ -109,14 +114,26 @@ const rpc = {
         ],
         pollRate: 6000,
         consumeRate: 3000,
+        avgBlockRateDay: 28800,
         geth: true,
     },
+
+    // berachain is still in testnet
+    // 80085: {
+    //     json: () => [
+    //         `https://purple-dimensional-glitter.bera-artio.quiknode.pro/67b0f331af3d77ac85c3e3065cf7ae8aa7e51a3a`,
+    //     ],
+    //     pollRate: 2000,
+    //     consumeRate: 750,
+    //     avgBlockRateDay: 5760,
+    // },
 
     // arbitrum testnet sepolia. no need to add usd etc as we don't need token price
     // 421614: {
     //   json: () => [`https://arb-sepolia.g.alchemy.com/v2/wzqsgMUJVVnrzEAOpl_LIsXtZhZeyyut`],
     //   pollRate: 500,
     //   consumeRate: 150,
+    //   avgBlockRateDay: 1036800,
     // },
 };
 

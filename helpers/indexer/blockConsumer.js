@@ -42,11 +42,7 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
 
         let promises = [];
         while (blockNumber) {
-            promises.push(
-                rpc[chainId].geth
-                    ? _consumeBlockGeth(chainId, blockNumber)
-                    : _consumeBlock(chainId, blockNumber),
-            );
+            promises.push(_consumeBlockAny(chainId, blockNumber));
             if (promises.length > 10) {
                 await Promise.allSettled(promises);
                 promises = [];
@@ -61,6 +57,12 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
     } finally {
         isConsuming[chainId] = false;
     }
+};
+
+const _consumeBlockAny = async (chainId, blockNumber, isOldBlocks = false) => {
+    return rpc[chainId].geth
+        ? _consumeBlockGeth(chainId, blockNumber, isOldBlocks)
+        : _consumeBlock(chainId, blockNumber, isOldBlocks);
 };
 
 /**
@@ -79,14 +81,13 @@ const _consumeBlock = async (chainId, blockNumber, isOldBlocks) => {
 
 const _consumeBlockProcess = async (chainId, blockNumber, isOldBlocks, txnFetchMethod) => {
     try {
-        const { txns, receipts, timestamp } = await txnFetchMethod(
-            chainId,
-            blockNumber,
-            isOldBlocks,
-        );
+        const { txns, receipts, timestamp } = await txnFetchMethod(chainId, blockNumber);
         await _saveTxnsWithReceipt(chainId, receipts, txns, timestamp);
     } catch (e) {
         console.error(`could not consume block ${chainId}::${blockNumber}`, e);
+
+        // no need to retry if its an old block
+        if (isOldBlocks) return;
 
         // debounce timer
         if (!delayed[chainId]) delayed[chainId] = {};
@@ -106,7 +107,7 @@ const _consumeBlockProcess = async (chainId, blockNumber, isOldBlocks, txnFetchM
     }
 };
 
-const _fetchTxnsAndReceiptsGeth = async (chainId, blockNumber, isOldBlocks) => {
+const _fetchTxnsAndReceiptsGeth = async (chainId, blockNumber) => {
     const { txns, timestamp } = await getBlockTransactions(chainId, parseInt(blockNumber)); // Grouped
     if (!txns?.length) {
         console.log('null block', chainId, blockNumber);
@@ -133,7 +134,7 @@ const _fetchTxnsAndReceiptsGeth = async (chainId, blockNumber, isOldBlocks) => {
     return { txns, receipts, timestamp };
 };
 
-const _fetchTxnsAndReceipts = async (chainId, blockNumber, isOldBlocks) => {
+const _fetchTxnsAndReceipts = async (chainId, blockNumber) => {
     const { txns, timestamp } = await getBlockTransactions(chainId, parseInt(blockNumber)); // Grouped
     if (!txns.length) {
         console.log('null block', chainId, blockNumber);
@@ -263,4 +264,4 @@ const _saveToDb = async (chainId) => {
     }
 };
 
-module.exports = { init, _consumeBlock };
+module.exports = { init, _consumeBlockAny };

@@ -391,6 +391,10 @@ const _getLastTrackedBlocksDb = async () => {
     }
 };
 
+const getFirstTrackedBlock = async (chainId) => {
+    return (await client.query(`select min(block_number) from txns_${chainId}`))?.rows?.[0]?.min;
+};
+
 const getTxnsCountFromDb = async (chainId, blockNumber) => {
     try {
         const data = await client.query(`
@@ -439,6 +443,7 @@ module.exports = {
     saveTxnsToDb,
     saveLogsToDb,
     _getLastTrackedBlocksDb,
+    getFirstTrackedBlock,
     getTxnsCountFromDb,
     getAllBlockNumbers,
 };
