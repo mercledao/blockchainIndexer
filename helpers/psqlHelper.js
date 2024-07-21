@@ -130,6 +130,14 @@ const _initChainwiseLogs = async (chainId) => {
       )`,
         );
 
+        await client.query(
+            `CREATE UNIQUE INDEX IF NOT EXISTS idxLogs_${chainId} ON ${tableName} 
+      (
+        "${tableDetails.columns.txnHash.field}",
+        "${tableDetails.columns.logIndex.field}"
+      );`,
+        );
+
         // Indexing contractAddr & topics[0]
         client
             .query(
@@ -208,7 +216,7 @@ const saveTxnsToDb = async (dataRows, chainId) => {
         await client.query(
             `INSERT INTO ${tableName}(${fields.join(
                 ',',
-            )}) VALUES ${_placeholderValues} ON CONFLICT (txn_hash) DO NOTHING;`,
+            )}) VALUES ${_placeholderValues} ON CONFLICT (${tableDetails.columns.txnHash.field}) DO NOTHING;`,
             values,
         );
     } catch (error) {
@@ -256,7 +264,8 @@ const saveLogsToDb = async (dataRows, chainId) => {
 
         // todo: create unique index
         await client.query(
-            `INSERT INTO ${tableName}(${fields.join(',')}) VALUES ${_placeholderValues};`,
+            `INSERT INTO ${tableName}(${fields.join(',')}) VALUES ${_placeholderValues} 
+            ON CONFLICT (${tableDetails.columns.txnHash.field}, ${tableDetails.columns.logIndex.field}) DO NOTHING;`,
             values,
         );
     } catch (error) {
