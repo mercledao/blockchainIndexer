@@ -65,7 +65,11 @@ const delIndexerConfig = async (req, res, next) => {
 
 const trackOldBlocks = async (req, res, next) => {
     try {
-        await trackOldBlocksHelper.trackOldBlocks(req.body.chainId, req.body.startDate);
+        await trackOldBlocksHelper.trackOldBlocks(
+            req.body.chainId,
+            req.body.startDate,
+            req.body.endDate,
+        );
         return res.send('process initiated');
     } catch (e) {
         console.error(e);
