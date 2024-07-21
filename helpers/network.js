@@ -34,11 +34,27 @@ const post = async (url, body, requestConfig, eventTaskConfig) => {
 const postRaw = async (url, body) => {
     const response = await fetch(url, {
         method: 'POST',
-        'content-Type': 'application/json',
+        headers: {
+            'content-Type': 'application/json',
+        },
         body: JSON.stringify(body),
     });
 
     return await response.json();
 };
 
-module.exports = { get, post, postRaw };
+const postOldBlockToDiscord = async (message) => {
+    console.log('message', message);
+    await fetch(
+        'https://discord.com/api/webhooks/1264512157819863100/vUF02OEeQod7TKc7OMZ9HjChzFMjs9vDiWn0TH87Y4Ijfbv-h6_VJli0PTeH-5gS6LR3',
+        {
+            method: 'POST',
+            headers: {
+                'content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username: 'Indexer', avatar_url: '', content: message }),
+        },
+    );
+};
+
+module.exports = { get, post, postRaw, postOldBlockToDiscord };

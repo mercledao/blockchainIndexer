@@ -1,3 +1,4 @@
+const trackOldBlocksHelper = require('../../helpers/trackOldBlocksHelper');
 const blockConsumer = require('../../helpers/indexer/blockConsumer');
 
 /**
@@ -62,47 +63,10 @@ const delIndexerConfig = async (req, res, next) => {
     }
 };
 
-const Bottleneck = require('bottleneck');
-
 const trackOldBlocks = async (req, res, next) => {
-    if (!req.body.chainId) return res.status(400).send('chainId required');
-    if (!req.body.blocks) return res.status(400).send('blocks required');
     try {
-        return res.send({});
-        const chainId = req.body.chainId.toString();
-        const blocks = req.body.blocks.map((v) => v.toString());
-
-        let tst = Date.now();
-        let st = Date.now();
-
-        const limiter = new Bottleneck({
-            maxConcurrent: 300,
-        });
-
-        for (let i = 0; i < blocks.length; i++) {
-            const block = blocks[i];
-            limiter.schedule(() => {
-                console.log('processing', i, block);
-                blockConsumer._consumeBlock(chainId, block, true).catch((e) => console.error(e));
-            });
-        }
-        console.log('waiting for tasks to finish');
-        await new Promise((resolve, reject) => {
-            limiter.on('idle', () => {
-                console.log('All tasks have been completed');
-                resolve();
-            });
-
-            // Optional: Handle possible errors in your tasks
-            limiter.on('error', (error) => {
-                console.error('An error occurred when processing a task:', error);
-                reject(error);
-            });
-        });
-
-        console.log('processing total runtime:', Math.ceil((Date.now() - tst) / 1000 / 60), 'mins');
-
-        return res.send(`done: trackOldBlocks for ${chainId} blocks ${blocks.length}`);
+        await trackOldBlocksHelper.trackOldBlocks(req.body.chainId, req.body.startDate);
+        return res.send('process initiated');
     } catch (e) {
         console.error(e);
         return res.status(400).send(e);
