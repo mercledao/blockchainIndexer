@@ -35,7 +35,6 @@ const produceBlock = async () => {
     }
 };
 
-// todo: need to check if locked producer is still producing blocks or not. if not unlock it
 const _produceBlockForChain = async (chainId) => {
     if (lockProducer[chainId]) return;
     lockProducer[chainId] = true;
@@ -59,7 +58,6 @@ const _produceBlockForChain = async (chainId) => {
         ) {
             blocks.push(`${i}`);
         }
-        blocks.push(`${blockNumber}`);
 
         if (blocks.length) {
             lastTrackedBlocks[chainId] = blockNumber;

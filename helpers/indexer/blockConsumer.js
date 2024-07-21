@@ -40,15 +40,22 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
 
         isConsuming[chainId] = true;
 
+        let promises = [];
         while (blockNumber) {
-            // save txns with receipt
-
-            rpc[chainId].geth
-                ? _consumeBlockGeth(chainId, blockNumber)
-                : _consumeBlock(chainId, blockNumber);
+            promises.push(
+                rpc[chainId].geth
+                    ? _consumeBlockGeth(chainId, blockNumber)
+                    : _consumeBlock(chainId, blockNumber),
+            );
+            if (promises.length > 10) {
+                await Promise.allSettled(promises);
+                promises = [];
+            }
 
             blockNumber = await popBlock(chainId);
         }
+
+        if (promises.length) await Promise.allSettled(promises);
     } catch (e) {
         console.error('_consumeAllPendingBlocksForChain', chainId, e);
     } finally {
