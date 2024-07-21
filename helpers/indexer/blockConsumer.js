@@ -25,7 +25,7 @@ const consumeBlockJob = async () => {
         const chainId = supportedChains[i];
         blockConsumerJobs[chainId] = setInterval(
             () => _consumeAllPendingBlocksForChain(chainId),
-            parseInt(rpc[chainId].consumeRate),
+            rpc[chainId].consumeRate,
         );
     }
 };
@@ -40,15 +40,22 @@ const _consumeAllPendingBlocksForChain = async (chainId) => {
 
         isConsuming[chainId] = true;
 
+        let promises = [];
         while (blockNumber) {
-            // save txns with receipt
-
-            rpc[chainId].geth
-                ? _consumeBlockGeth(chainId, blockNumber)
-                : _consumeBlock(chainId, blockNumber);
+            promises.push(
+                rpc[chainId].geth
+                    ? _consumeBlockGeth(chainId, blockNumber)
+                    : _consumeBlock(chainId, blockNumber),
+            );
+            if (promises.length > 10) {
+                await Promise.allSettled(promises);
+                promises = [];
+            }
 
             blockNumber = await popBlock(chainId);
         }
+
+        if (promises.length) await Promise.allSettled(promises);
     } catch (e) {
         console.error('_consumeAllPendingBlocksForChain', chainId, e);
     } finally {
@@ -91,7 +98,7 @@ const _consumeBlockProcess = async (chainId, blockNumber, isOldBlocks, txnFetchM
                 addBlocksQueue(chainId, [blockNumber]).catch((e) =>
                     console.error('error republishing errored consumed block', e),
                 );
-            }, parseInt(rpc[chainId].consumeRate));
+            }, rpc[chainId].consumeRate);
         } else {
             delete delayed[chainId][blockNumber];
             console.log('ignoring null block after multiple retries', chainId, blockNumber);
@@ -107,12 +114,21 @@ const _fetchTxnsAndReceiptsGeth = async (chainId, blockNumber, isOldBlocks) => {
     }
     const receipts = [];
 
-    await Promise.allSettled(
-        txns.map(async (txn) => {
-            const receipt = await getTxnReceipt(chainId, txn.hash);
-            receipts.push(receipt);
-        }),
-    );
+    let r = [];
+    for (let i = 0; i < txns?.length; i++) {
+        const txn = txns[i];
+        r.push(getTxnReceipt(chainId, txn.hash));
+
+        if (r.length > 5) {
+            const values = await Promise.allSettled(r);
+            values.forEach((v) => receipts.push(v.value));
+            r = [];
+        }
+    }
+    if (r.length) {
+        const values = await Promise.allSettled(r);
+        values.forEach((v) => receipts.push(v.value));
+    }
 
     return { txns, receipts, timestamp };
 };
