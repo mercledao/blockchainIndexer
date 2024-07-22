@@ -1,12 +1,11 @@
 require("dotenv").config();
 const chai = require("chai");
+const { saveLogsToDb, saveTxnsToDb } = require("../helpers/psqlHelper");
 const {
-  saveLogsToDb,
   _testForDuplicateLogs,
-  saveTxnsToDb,
   _testForDuplicateTxns,
   _getAllTableNames,
-} = require("../helpers/psqlHelper");
+} = require("./helpers/testHelper");
 const { rpc } = require("../constants");
 const expect = chai.expect;
 
