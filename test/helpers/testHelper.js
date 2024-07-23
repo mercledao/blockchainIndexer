@@ -43,8 +43,39 @@ const _getAllTableNames = async () => {
   }
 };
 
+// to be used inside blockConsumer ( as _saveTxns is not imported here )
+const _saveInDb = async (chainId, txnHash) => {
+  try {
+    const receipts = [];
+    let data = await ethersHelper.getTxnReceipt(chainId, txnHash);
+    receipts.push(data);
+
+    const txns = []; // Grouped
+    data = await ethersHelper.getTxnByHash(chainId, txnHash);
+    txns.push(data);
+
+    const obj = await ethersHelper.getBlockTransactions(
+      chainId,
+      txns[0].blockNumber
+    );
+
+    await _saveTxnsWithReceipt(chainId, receipts, txns, obj.timestamp);
+  } catch (err) {
+    console.error("Error while saving test txns.", err.message);
+  }
+};
+
+const saveTestTxns = async () => {
+  for (const txn of testTxns) {
+    await _saveInDb(txn.chainId, txn.txnHash.toLowerCase());
+  }
+
+  console.log("All testTxns inserted\n");
+};
+
 module.exports = {
   _testForDuplicateLogs,
   _testForDuplicateTxns,
   _getAllTableNames,
+  saveTestTxns,
 };

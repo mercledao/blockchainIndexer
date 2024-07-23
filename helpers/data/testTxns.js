@@ -1,11 +1,15 @@
 const testTxns = [
   {
-    chainId: "8453",
-    txnHash: "0xc4e1fd03d0e87b410c5037ec631bfa91e1c7609f7b2b3b587c9cde84799a4c1b",
+    chainId: "80085",
+    txnHash: "0x62e4ab267cda626418df95cf7cc8c239257983258681c7eea85d5efedca3050f",
   },
   {
     chainId: "8453",
-    txnHash: "0x6ff09bce7ef2856243b5110195ccfa962cfe4bb9ee71fc3847ce67404de09d0c",
+    txnHash: "0xbb9efdd4971cf79db877432226a2358edc7d16d62357dcd1deff055f5f07bc44",
+  },
+  {
+    chainId: "8453",
+    txnHash: "0xc4e1fd03d0e87b410c5037ec631bfa91e1c7609f7b2b3b587c9cde84799a4c1b",
   },
   {
     chainId: "8453",
@@ -108,7 +112,7 @@ const testTxns = [
     txnHash: "0x1e871cc178dd64341af71f60132361cad3b68bab8c4bd78b93735a41d856e8e7",
   },
   {
-    chainId: "1",
+    chainId: "56",
     txnHash: "0x98ccb25da21787dd68958029537bc89d988101467a6e748ddc8ee0ec2f4dfe99",
   },
   {
