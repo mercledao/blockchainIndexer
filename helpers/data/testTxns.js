@@ -49,6 +49,10 @@ const testTxns = [
   },
   {
     chainId: "137",
+    txnHash: "0x9615021e565f150a45e329eb796bdb9ecb5da40a5f1136a4116ed02881d6073b",
+  },
+  {
+    chainId: "137",
     txnHash: "0x2705ecacfef5db823256805cd74549ed5a6e1766c9be21b05252c00e2a533277",
   },
   {
@@ -117,27 +121,7 @@ const testTxns = [
   },
   {
     chainId: "1",
-    txnHash: "0x8c3111cc72185a7b22ae802da3b0b625a078eb47b8d8623bbd7152dd2af08ba3",
-  },
-  {
-    chainId: "1",
-    txnHash: "0x031ce3911e38b55b020fa7e5136e6313e570bb7988b9fc7ffd8afcd9c6e1863c",
-  },
-  {
-    chainId: "1",
-    txnHash: "0xd8fb497db39714ae1ce56d73308dfeb3e418e41967d537f8f2b4b27e8b4dc5e8",
-  },
-  {
-    chainId: "1",
-    txnHash: "0x27e25514813c924871719951f5a11c033e8f68d379e16424cb81734ab162496b",
-  },
-  {
-    chainId: "1",
     txnHash: "0xae9938686cd77a8864b29b96d691c226e8bbca124e6b8d6866ce0ab8e6093eba",
-  },
-  {
-    chainId: "1",
-    txnHash: "0x59fb5025c9aa78b27efe84e61f0ca36948db933b61836dc4cf257da813dbe7c4",
   },
   {
     chainId: "1",
@@ -158,6 +142,14 @@ const testTxns = [
   {
     chainId: "1",
     txnHash: "0xbe1545ec15bcb5b94d56efadc447b24d9cda5129f7acdb7c0256737c89b51807",
+  },
+  {
+    chainId: "1",
+    txnHash: "0x8c3111cc72185a7b22ae802da3b0b625a078eb47b8d8623bbd7152dd2af08ba3",
+  },
+  {
+    chainId: "1",
+    txnHash: "0xd8fb497db39714ae1ce56d73308dfeb3e418e41967d537f8f2b4b27e8b4dc5e8",
   },
 ];
 
