@@ -49,6 +49,10 @@ const testTxns = [
   },
   {
     chainId: "137",
+    txnHash: "0x9615021e565f150a45e329eb796bdb9ecb5da40a5f1136a4116ed02881d6073b",
+  },
+  {
+    chainId: "137",
     txnHash: "0x2705ecacfef5db823256805cd74549ed5a6e1766c9be21b05252c00e2a533277",
   },
   {
